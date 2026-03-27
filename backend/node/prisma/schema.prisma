@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Plan {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  limits     Json
+  priceCents Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  users      User[]
+
+  @@map("plans")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  planId       String
+  apiKey       String?   @unique
+  refreshToken String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  plan         Plan      @relation(fields: [planId], references: [id])
+  jobs         Job[]
+  usageLogs    UsageLog[]
+  billing      Billing?
+  webhooks     Webhook[]
+
+  @@index([email])
+  @@index([apiKey])
+  @@map("users")
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum JobType {
+  MERGE
+  SPLIT
+  COMPRESS
+  PDF_TO_PNG
+}
+
+model Job {
+  id           String    @id @default(uuid())
+  userId       String
+  type         JobType
+  status       JobStatus @default(PENDING)
+  inputUrl     String?
+  outputUrl    String?
+  metadata     Json?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  expiresAt    DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+model UsageLog {
+  id          String   @id @default(cuid())
+  userId      String
+  jobType     JobType
+  creditsUsed Int      @default(1)
+  timestamp   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@map("usage_logs")
+}
+
+model Billing {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  status               String   @default("inactive")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("billing")
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  events    String[]
+  secret    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("webhooks")
+}

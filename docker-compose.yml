@@ -1,0 +1,190 @@
+version: "3.9"
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-pdflow}:${POSTGRES_PASSWORD:-pdflow_secret}@postgres:5432/${POSTGRES_DB:-pdflow}
+  REDIS_URL: redis://redis:6379/0
+  S3_BUCKET: ${S3_BUCKET:-pdflow-uploads}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-in-production}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pdflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pdflow_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-pdflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pdflow} -d ${POSTGRES_DB:-pdflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - pdflow
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - pdflow
+
+  python-api:
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *common-env
+      PORT: "8000"
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    volumes:
+      - ./backend/python:/app
+    networks:
+      - pdflow
+
+  python-worker:
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.worker worker --loglevel=info --concurrency=2 -Q pdf_processing,default
+    environment:
+      <<: *common-env
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.worker", "inspect", "ping", "--timeout", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./backend/python:/app
+    networks:
+      - pdflow
+
+  node-api:
+    build:
+      context: ./backend/node
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      <<: *common-env
+      PORT: "3001"
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pdflow}:${POSTGRES_PASSWORD:-pdflow_secret}@postgres:5432/${POSTGRES_DB:-pdflow}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r => { if (!r.ok) process.exit(1) })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - pdflow
+
+  node-worker:
+    build:
+      context: ./backend/node
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: node dist/src/worker.js
+    environment:
+      <<: *common-env
+      PORT: "3002"
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pdflow}:${POSTGRES_PASSWORD:-pdflow_secret}@postgres:5432/${POSTGRES_DB:-pdflow}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/health').then(r => { if (!r.ok) process.exit(1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - pdflow
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_PYTHON_API_URL: http://localhost:8000
+      NEXT_PUBLIC_NODE_API_URL: http://localhost:3001
+      NODE_ENV: development
+    depends_on:
+      python-api:
+        condition: service_healthy
+      node-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => { if (!r.ok) process.exit(1) })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - pdflow
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  pdflow:
+    driver: bridge

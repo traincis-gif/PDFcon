@@ -1,0 +1,173 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-backend:
+    name: Python Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/python
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pdflow
+          POSTGRES_PASSWORD: pdflow_secret
+          POSTGRES_DB: pdflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pdflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/python/requirements.txt
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils libpq-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Format check with ruff
+        run: ruff format --check .
+
+      - name: Run tests with pytest
+        env:
+          DATABASE_URL: postgresql://pdflow:pdflow_secret@localhost:5432/pdflow_test
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/1
+          CELERY_RESULT_BACKEND: redis://localhost:6379/2
+          JWT_SECRET: ci-test-secret-not-for-production
+          S3_BUCKET: test-bucket
+          S3_REGION: us-east-1
+        run: pytest -v --tb=short
+
+  node-backend:
+    name: Node Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/node
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pdflow
+          POSTGRES_PASSWORD: pdflow_secret
+          POSTGRES_DB: pdflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pdflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/node/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint with ESLint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests with Vitest
+        env:
+          DATABASE_URL: postgresql://pdflow:pdflow_secret@localhost:5432/pdflow_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret-not-for-production
+          S3_BUCKET: test-bucket
+          S3_REGION: us-east-1
+          NODE_ENV: test
+        run: npm test
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_PYTHON_API_URL: http://localhost:8000
+          NEXT_PUBLIC_NODE_API_URL: http://localhost:3001
+        run: npm run build
