@@ -4,30 +4,47 @@ import { config } from "../config";
 import { logger } from "../lib/logger";
 import { processJob } from "./processor";
 
-const connection = new IORedis(config.REDIS_URL, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-});
-
-connection.on("error", (err) => {
-  logger.error({ err }, "Redis connection error");
-});
-
-connection.on("connect", () => {
-  logger.info("Redis connected");
-});
-
-export const pdfQueue = new Queue("pdf-processing", {
-  connection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 2000 },
-    removeOnComplete: { age: 86400, count: 1000 },
-    removeOnFail: { age: 604800, count: 5000 },
-  },
-});
-
+let connection: IORedis | null = null;
+let pdfQueueInstance: Queue | null = null;
 let worker: Worker | null = null;
+let queueEventsInstance: QueueEvents | null = null;
+
+function getConnection(): IORedis {
+  if (!connection) {
+    connection = new IORedis(config.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      retryStrategy(times) {
+        if (times > 5) return null;
+        return Math.min(times * 500, 3000);
+      },
+    });
+
+    connection.on("error", (err) => {
+      logger.error({ err: err.message }, "Redis connection error");
+    });
+
+    connection.on("connect", () => {
+      logger.info("Redis connected");
+    });
+  }
+  return connection;
+}
+
+export function getPdfQueue(): Queue {
+  if (!pdfQueueInstance) {
+    pdfQueueInstance = new Queue("pdf-processing", {
+      connection: getConnection(),
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
+        removeOnComplete: { age: 86400, count: 1000 },
+        removeOnFail: { age: 604800, count: 5000 },
+      },
+    });
+  }
+  return pdfQueueInstance;
+}
 
 export function startWorker(concurrency = 3): Worker {
   if (worker) return worker;
@@ -39,7 +56,7 @@ export function startWorker(concurrency = 3): Worker {
       return processJob(job);
     },
     {
-      connection,
+      connection: getConnection(),
       concurrency,
       limiter: {
         max: 10,
@@ -60,7 +77,7 @@ export function startWorker(concurrency = 3): Worker {
   });
 
   worker.on("error", (err) => {
-    logger.error({ err }, "Worker error");
+    logger.error({ err: err.message }, "Worker error");
   });
 
   worker.on("stalled", (jobId) => {
@@ -72,22 +89,20 @@ export function startWorker(concurrency = 3): Worker {
   return worker;
 }
 
-export const queueEvents = new QueueEvents("pdf-processing", { connection });
-
-queueEvents.on("waiting", ({ jobId }) => {
-  logger.debug({ jobId }, "Job waiting");
-});
-
 export async function getQueueStats() {
-  const [waiting, active, completed, failed, delayed] = await Promise.all([
-    pdfQueue.getWaitingCount(),
-    pdfQueue.getActiveCount(),
-    pdfQueue.getCompletedCount(),
-    pdfQueue.getFailedCount(),
-    pdfQueue.getDelayedCount(),
-  ]);
-
-  return { waiting, active, completed, failed, delayed };
+  try {
+    const queue = getPdfQueue();
+    const [waiting, active, completed, failed, delayed] = await Promise.all([
+      queue.getWaitingCount(),
+      queue.getActiveCount(),
+      queue.getCompletedCount(),
+      queue.getFailedCount(),
+      queue.getDelayedCount(),
+    ]);
+    return { waiting, active, completed, failed, delayed };
+  } catch {
+    return null;
+  }
 }
 
 export async function closeQueue() {
@@ -95,8 +110,17 @@ export async function closeQueue() {
     await worker.close();
     worker = null;
   }
-  await pdfQueue.close();
-  await queueEvents.close();
-  await connection.quit();
+  if (pdfQueueInstance) {
+    await pdfQueueInstance.close();
+    pdfQueueInstance = null;
+  }
+  if (queueEventsInstance) {
+    await queueEventsInstance.close();
+    queueEventsInstance = null;
+  }
+  if (connection) {
+    await connection.quit();
+    connection = null;
+  }
   logger.info("Queue connections closed");
 }

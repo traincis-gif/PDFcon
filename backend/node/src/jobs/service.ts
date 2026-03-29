@@ -1,7 +1,7 @@
 import { JobStatus, JobType } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { NotFoundError, PlanLimitError } from "../lib/errors";
-import { pdfQueue } from "../worker/queue";
+import { getPdfQueue } from "../worker/queue";
 import { CreateJobInput, ListJobsInput } from "./schemas";
 import { logger } from "../lib/logger";
 
@@ -82,7 +82,7 @@ export async function createJob(userId: string, plan: any, input: CreateJobInput
   });
 
   // Enqueue to BullMQ
-  await pdfQueue.add(
+  await getPdfQueue().add(
     `pdf-${input.type.toLowerCase()}`,
     {
       jobId: job.id,
@@ -163,7 +163,7 @@ export async function cancelJob(userId: string, jobId: string) {
   });
 
   // Remove from queue
-  const bullJob = await pdfQueue.getJob(jobId);
+  const bullJob = await getPdfQueue().getJob(jobId);
   if (bullJob) {
     await bullJob.remove();
   }
