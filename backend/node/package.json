@@ -35,12 +35,12 @@
     "pino": "^8.19.0",
     "pino-pretty": "^11.0.0",
     "sharp": "^0.33.3",
+    "prisma": "^5.12.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^20.11.30",
-    "prisma": "^5.12.0",
     "tsx": "^4.7.1",
     "typescript": "^5.4.3",
     "vitest": "^1.4.0"
