@@ -6,7 +6,6 @@ import { getUserByApiKey } from "../auth/service";
 declare module "fastify" {
   interface FastifyRequest {
     userId?: string;
-    user?: any;
     userPlan?: any;
   }
 }
@@ -26,7 +25,6 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       throw new UnauthorizedError("Invalid API key");
     }
     request.userId = user.id;
-    request.user = user;
     request.userPlan = user.plan;
     return;
   }
@@ -51,8 +49,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       }
 
       request.userId = user.id;
-      request.user = user;
-      request.userPlan = user.plan;
+        request.userPlan = user.plan;
       return;
     } catch (err) {
       if (err instanceof UnauthorizedError) throw err;

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -14,7 +15,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   const app = fastify({
     logger: false, // We use our own pino logger
     trustProxy: true,
-    requestId: true,
+    genReqId: () => crypto.randomUUID(),
     bodyLimit: 10 * 1024 * 1024, // 10MB
   });
 
