@@ -4,13 +4,13 @@ WORKDIR /app
 
 # Install dependencies
 FROM base AS deps
-COPY backend/node/package.json backend/node/package-lock.json* ./
-RUN npm ci --omit=dev
+COPY backend/node/package.json ./
+RUN npm install --omit=dev
 
 # Build
 FROM base AS build
-COPY backend/node/package.json backend/node/package-lock.json* ./
-RUN npm ci
+COPY backend/node/package.json ./
+RUN npm install
 COPY backend/node/tsconfig.json ./
 COPY backend/node/prisma ./prisma/
 RUN npx prisma generate
