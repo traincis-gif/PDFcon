@@ -5,7 +5,9 @@ import { startWorker, closeQueue } from "./worker/queue";
 import { disconnectPrisma } from "./lib/prisma";
 
 async function main() {
+  console.log("Starting PDFlow server...");
   const app = await buildApp();
+  console.log("App built successfully");
 
   // Start the BullMQ worker in the same process (can be split for scale)
   try {
@@ -57,15 +59,20 @@ async function main() {
 
   // Start server
   try {
+    const port = Number(process.env.PORT) || config.PORT || 8080;
     const address = await app.listen({
-      port: config.PORT,
+      port,
       host: "0.0.0.0",
     });
-    logger.info({ address, port: config.PORT, env: config.NODE_ENV }, "Server started");
+    console.log(`Server listening on ${address} (port ${port})`);
+    logger.info({ address, port, env: config.NODE_ENV }, "Server started");
   } catch (err) {
     logger.fatal({ err }, "Failed to start server");
     process.exit(1);
   }
 }
 
-main();
+main().catch((err) => {
+  console.error("Fatal startup error:", err);
+  process.exit(1);
+});
