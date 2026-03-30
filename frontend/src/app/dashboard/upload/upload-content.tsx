@@ -62,10 +62,10 @@ const operationHints: Record<OperationType, string> = {
 };
 
 /** Operations that accept multiple files */
-const multiFileOps: Set<OperationType> = new Set(['merge', 'img_to_pdf']);
+const multiFileOps = new Set<OperationType>(['merge', 'img_to_pdf'] as OperationType[]);
 
 /** Operations that accept image files instead of PDFs */
-const imageInputOps: Set<OperationType> = new Set(['img_to_pdf']);
+const imageInputOps = new Set<OperationType>(['img_to_pdf'] as OperationType[]);
 
 /** Operations that need an options form */
 const opsWithOptions: Set<OperationType> = new Set([
