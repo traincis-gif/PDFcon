@@ -1,25 +1,15 @@
-import { useAuthStore } from './auth';
-import type { AuthResponse, Job, JobsResponse, UploadResponse } from '@/types';
+import type { Job, JobsResponse, UploadResponse } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 class ApiClient {
-  private getToken(): string | null {
-    return useAuthStore.getState().token;
-  }
-
   private async request<T>(
     path: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = this.getToken();
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
     };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     if (!(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
@@ -30,34 +20,12 @@ class ApiClient {
       headers,
     });
 
-    if (res.status === 401) {
-      useAuthStore.getState().logout();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-      throw new Error('Unauthorized');
-    }
-
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: { message: 'Request failed' } }));
       throw new Error(error.error?.message || error.message || 'Request failed');
     }
 
     return res.json();
-  }
-
-  async login(email: string, password: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-  }
-
-  async register(email: string, password: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
   }
 
   async getJobs(): Promise<JobsResponse> {
@@ -73,7 +41,6 @@ class ApiClient {
     operation: string,
     onProgress?: (percent: number) => void
   ): Promise<UploadResponse> {
-    const token = this.getToken();
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     formData.append('operation', operation);
@@ -82,10 +49,6 @@ class ApiClient {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_URL}/jobs/upload`);
 
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
           onProgress(Math.round((e.loaded / e.total) * 100));
@@ -93,14 +56,6 @@ class ApiClient {
       };
 
       xhr.onload = () => {
-        if (xhr.status === 401) {
-          useAuthStore.getState().logout();
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
-          }
-          reject(new Error('Unauthorized'));
-          return;
-        }
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(JSON.parse(xhr.responseText));
         } else {
@@ -119,8 +74,7 @@ class ApiClient {
   }
 
   getDownloadUrl(jobId: string): string {
-    const token = this.getToken();
-    return `${API_URL}/jobs/${jobId}/download?token=${token}`;
+    return `${API_URL}/jobs/${jobId}/download`;
   }
 }
 

@@ -5,59 +5,17 @@ import { getPdfQueue } from "../worker/queue";
 import { CreateJobInput, ListJobsInput } from "./schemas";
 import { logger } from "../lib/logger";
 
-interface PlanLimits {
-  maxJobsPerMonth: number;
-  maxFileSizeMB: number;
-  maxPagesPerJob: number;
-  concurrentJobs: number;
-  retentionDays: number;
-}
+// Generous defaults for anonymous/no-auth usage
+const DEFAULT_PLAN_LIMITS = {
+  maxJobsPerMonth: -1,    // unlimited
+  maxFileSizeMB: 100,
+  maxPagesPerJob: 10000,
+  concurrentJobs: -1,     // unlimited
+  retentionDays: 30,
+};
 
-export async function checkPlanLimits(userId: string, planLimits: PlanLimits) {
-  // Check monthly job count (-1 = unlimited)
-  if (planLimits.maxJobsPerMonth !== -1) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const jobCount = await prisma.usageLog.count({
-      where: {
-        userId,
-        timestamp: { gte: startOfMonth },
-      },
-    });
-
-    if (jobCount >= planLimits.maxJobsPerMonth) {
-      throw new PlanLimitError(
-        `Monthly job limit reached (${planLimits.maxJobsPerMonth} jobs/month). Upgrade your plan for more.`,
-        { currentUsage: jobCount, limit: planLimits.maxJobsPerMonth }
-      );
-    }
-  }
-
-  // Check concurrent jobs
-  if (planLimits.concurrentJobs !== -1) {
-    const activeJobs = await prisma.job.count({
-      where: {
-        userId,
-        status: { in: [JobStatus.PENDING, JobStatus.PROCESSING] },
-      },
-    });
-
-    if (activeJobs >= planLimits.concurrentJobs) {
-      throw new PlanLimitError(
-        `Concurrent job limit reached (${planLimits.concurrentJobs}). Wait for current jobs to finish.`,
-        { activeJobs, limit: planLimits.concurrentJobs }
-      );
-    }
-  }
-}
-
-export async function createJob(userId: string, plan: any, input: CreateJobInput) {
-  const planLimits = plan.limits as PlanLimits;
-  await checkPlanLimits(userId, planLimits);
-
-  const retentionDays = planLimits.retentionDays;
+export async function createJob(userId: string, input: CreateJobInput) {
+  const retentionDays = DEFAULT_PLAN_LIMITS.retentionDays;
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + retentionDays);
 
@@ -90,7 +48,7 @@ export async function createJob(userId: string, plan: any, input: CreateJobInput
       type: input.type,
       inputUrl: input.inputUrl,
       metadata: input.metadata,
-      planLimits,
+      planLimits: DEFAULT_PLAN_LIMITS,
     },
     {
       jobId: job.id,

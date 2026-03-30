@@ -2,12 +2,10 @@ import crypto from "crypto";
 import fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
-import fjwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config";
 import { logger } from "./lib/logger";
 import { errorHandler } from "./lib/errors";
-import { authRouter } from "./auth/router";
 import { jobsRouter } from "./jobs/router";
 import { getQueueStats } from "./worker/queue";
 
@@ -30,15 +28,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     contentSecurityPolicy: false,
   });
 
-  await app.register(fjwt, {
-    secret: config.JWT_SECRET,
-  });
-
   await app.register(rateLimit, {
     max: 100,
     timeWindow: "1 minute",
     keyGenerator: (request) => {
-      return (request as any).userId || request.ip;
+      return request.ip;
     },
   });
 
@@ -93,7 +87,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // --- Routes ---
-  await app.register(authRouter);
   await app.register(jobsRouter);
 
   // --- 404 handler ---
