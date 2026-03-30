@@ -25,7 +25,7 @@ export default function LoginPage() {
 
     try {
       const res = await api.login(email, password);
-      setAuth(res.access_token, res.user);
+      setAuth(res.accessToken, res.user);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');

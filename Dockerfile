@@ -40,6 +40,7 @@ COPY --from=backend-deps /app/node_modules ./backend/node_modules
 COPY --from=backend-build /app/dist ./backend/dist
 COPY --from=backend-build /app/node_modules/.prisma ./backend/node_modules/.prisma
 COPY backend/node/prisma ./backend/prisma/
+COPY backend/node/prisma/seed.js ./backend/prisma/seed.js
 COPY backend/node/package.json ./backend/
 
 # Frontend files

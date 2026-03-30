@@ -29,16 +29,16 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters with uppercase, lowercase, and a number');
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await api.register(name, email, password);
-      setAuth(res.access_token, res.user);
+      const res = await api.register(email, password);
+      setAuth(res.accessToken, res.user);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Registration failed');

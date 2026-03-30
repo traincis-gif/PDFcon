@@ -6,7 +6,11 @@ echo "=== PDFlow Combined Startup ==="
 # Run Prisma DB push
 echo "=== Syncing database schema ==="
 cd /app/backend
-DATABASE_URL="$DATABASE_URL" npx prisma db push --skip-generate 2>&1 || echo "Warning: DB push failed"
+npx prisma db push --skip-generate 2>&1 || echo "Warning: DB push failed"
+
+# Seed plans
+echo "=== Seeding database ==="
+node prisma/seed.js 2>&1 || echo "Warning: Seed failed"
 cd /app
 
 # Start backend API on internal port 9090 (not exposed)

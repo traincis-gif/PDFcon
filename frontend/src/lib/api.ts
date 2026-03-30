@@ -39,36 +39,24 @@ class ApiClient {
     }
 
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || 'Request failed');
+      const error = await res.json().catch(() => ({ error: { message: 'Request failed' } }));
+      throw new Error(error.error?.message || error.message || 'Request failed');
     }
 
     return res.json();
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const formData = new URLSearchParams();
-    formData.append('username', email);
-    formData.append('password', password);
-
-    const res = await fetch(`${API_URL}/auth/login`, {
+    return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString(),
+      body: JSON.stringify({ email, password }),
     });
-
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ detail: 'Login failed' }));
-      throw new Error(error.detail || 'Login failed');
-    }
-
-    return res.json();
   }
 
-  async register(name: string, email: string, password: string): Promise<AuthResponse> {
+  async register(email: string, password: string): Promise<AuthResponse> {
     return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ email, password }),
     });
   }
 
@@ -118,7 +106,7 @@ class ApiClient {
         } else {
           try {
             const err = JSON.parse(xhr.responseText);
-            reject(new Error(err.detail || 'Upload failed'));
+            reject(new Error(err.error?.message || 'Upload failed'));
           } catch {
             reject(new Error('Upload failed'));
           }

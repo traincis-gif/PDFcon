@@ -2,10 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { formatDate, operationLabel, statusColor } from '@/lib/utils';
+import { formatDate, statusColor } from '@/lib/utils';
 import { Download, ExternalLink, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Job } from '@/types';
@@ -15,6 +14,7 @@ interface JobCardProps {
 }
 
 export function JobCard({ job }: JobCardProps) {
+  const status = job.status.toLowerCase();
   return (
     <Card className="transition-shadow hover:shadow-md">
       <CardContent className="p-4">
@@ -22,27 +22,24 @@ export function JobCard({ job }: JobCardProps) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(job.status)}`}>
-                {job.status === 'processing' && (
+                {status === 'processing' && (
                   <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                 )}
-                {job.status}
+                {status}
               </span>
               <span className="text-xs text-muted-foreground">
-                {operationLabel(job.operation)}
+                {job.type}
               </span>
             </div>
-            <p className="text-sm font-medium truncate">
-              {job.file_names?.join(', ') || job.file_name}
-            </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {formatDate(job.created_at)}
+              {formatDate(job.createdAt)}
             </p>
-            {job.error_message && (
-              <p className="text-xs text-destructive mt-1">{job.error_message}</p>
+            {job.errorMessage && (
+              <p className="text-xs text-destructive mt-1">{job.errorMessage}</p>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {job.status === 'done' && (
+            {status === 'done' && (
               <Button
                 size="sm"
                 variant="outline"
