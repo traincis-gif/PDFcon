@@ -31,6 +31,7 @@ ENV NEXT_PUBLIC_API_URL=""
 RUN npm run build
 
 # ========== PRODUCTION ==========
+# cache-bust: v2
 FROM base AS production
 ENV NODE_ENV=production
 
