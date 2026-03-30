@@ -89,9 +89,9 @@ export const createJobSchema = z.object({
         .regex(/^[\d\s,\-]+$/, "Page range must contain only digits, commas, hyphens, and spaces")
         .optional(),
       // Compress: quality level
-      quality: z.enum(["low", "medium", "high"]).optional().default("medium"),
+      quality: z.enum(["low", "medium", "high"]).optional(),
       // PDF to PNG / JPG: DPI
-      dpi: z.number().min(72).max(600).optional().default(150),
+      dpi: z.number().min(72).max(600).optional(),
       // Add Text: text overlay options
       text: z
         .string()
