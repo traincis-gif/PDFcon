@@ -30,4 +30,4 @@ COPY backend/node/package.json ./
 EXPOSE 8080
 ENV PORT=8080
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/server.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate 2>&1 && echo '--- DB sync done ---' && ls -la dist/src/server.js 2>&1 && node dist/src/server.js 2>&1"]

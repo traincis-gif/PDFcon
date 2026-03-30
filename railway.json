@@ -6,7 +6,7 @@
     "watchPatterns": ["backend/node/**"]
   },
   "deploy": {
-    "startCommand": "npx prisma db push --skip-generate && node dist/src/server.js",
+    "startCommand": "npx prisma db push --skip-generate 2>&1 && echo '--- DB sync done ---' && ls -la dist/src/server.js 2>&1 && node dist/src/server.js 2>&1",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
