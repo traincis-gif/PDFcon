@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:9090';
 
+/** Maximum file size per file: 50MB */
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -22,6 +25,22 @@ export async function POST(request: NextRequest) {
         { error: { code: 'VALIDATION_ERROR', message: 'At least one file is required' } },
         { status: 400 }
       );
+    }
+
+    // Validate file sizes BEFORE converting to base64 to fail fast
+    for (const file of fileEntries) {
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        return NextResponse.json(
+          {
+            error: {
+              code: 'FILE_TOO_LARGE',
+              message: `File "${file.name}" is ${sizeMB}MB which exceeds the 50MB limit`,
+            },
+          },
+          { status: 413 }
+        );
+      }
     }
 
     // Convert files to base64 for JSON transport to backend

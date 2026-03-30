@@ -15,7 +15,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: false, // We use our own pino logger
     trustProxy: true,
     genReqId: () => crypto.randomUUID(),
-    bodyLimit: 50 * 1024 * 1024, // 50MB for file uploads
+    // 75MB body limit to account for base64 encoding overhead (~33%) on 50MB files.
+    // A 50MB file becomes ~67MB when base64-encoded inside JSON.
+    bodyLimit: 75 * 1024 * 1024,
   });
 
   // --- Plugins ---

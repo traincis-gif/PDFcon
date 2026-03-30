@@ -90,6 +90,8 @@ model Job {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+  @@index([userId, status, createdAt])
+  @@index([expiresAt])
   @@map("jobs")
 }
 
@@ -103,6 +105,7 @@ model UsageLog {
 
   @@index([userId])
   @@index([timestamp])
+  @@index([userId, timestamp])
   @@map("usage_logs")
 }
 

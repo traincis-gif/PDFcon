@@ -133,13 +133,13 @@ export function UploadContent() {
           page: textOptions.page,
           x: textOptions.x,
           y: textOptions.y,
-          font_size: textOptions.fontSize,
+          fontSize: textOptions.fontSize,
           color: textOptions.color,
         };
       } else if (operation === 'watermark') {
         metadata = {
           text: watermarkOptions.text,
-          font_size: watermarkOptions.fontSize,
+          fontSize: watermarkOptions.fontSize,
           opacity: watermarkOptions.opacity,
           rotation: watermarkOptions.rotation,
           color: watermarkOptions.color,

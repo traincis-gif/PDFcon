@@ -3,6 +3,7 @@ import IORedis from "ioredis";
 import { config } from "../config";
 import { logger } from "../lib/logger";
 import { processJob } from "./processor";
+import { cleanupExpiredJobs } from "./cleanup";
 
 let connection: IORedis | null = null;
 let pdfQueueInstance: Queue | null = null;
@@ -52,6 +53,12 @@ export function startWorker(concurrency = 3): Worker {
   worker = new Worker(
     "pdf-processing",
     async (job) => {
+      // Handle the scheduled cleanup job separately
+      if (job.name === "cleanup-expired-jobs") {
+        logger.info("Running scheduled cleanup of expired jobs");
+        return cleanupExpiredJobs();
+      }
+
       logger.info({ jobId: job.id, type: job.name, data: job.data }, "Processing job");
       return processJob(job);
     },
@@ -86,6 +93,11 @@ export function startWorker(concurrency = 3): Worker {
 
   logger.info({ concurrency }, "BullMQ worker started");
 
+  // Schedule the cleanup job to run every hour
+  scheduleCleanup().catch((err) => {
+    logger.error({ err }, "Failed to schedule cleanup job");
+  });
+
   return worker;
 }
 
@@ -103,6 +115,24 @@ export async function getQueueStats() {
   } catch {
     return null;
   }
+}
+
+async function scheduleCleanup(): Promise<void> {
+  const queue = getPdfQueue();
+
+  // Add a repeatable job that triggers cleanup every hour
+  await queue.add(
+    "cleanup-expired-jobs",
+    {},
+    {
+      repeat: { every: 60 * 60 * 1000 }, // every hour
+      jobId: "cleanup-expired-jobs",
+      removeOnComplete: { count: 5 },
+      removeOnFail: { count: 10 },
+    }
+  );
+
+  logger.info("Scheduled hourly cleanup job for expired jobs");
 }
 
 export async function closeQueue() {

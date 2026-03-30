@@ -3,14 +3,20 @@ set -e
 
 echo "=== PDFlow Combined Startup ==="
 
-# Run Prisma DB push
+# Run Prisma DB push — uses `set -e` so if this fails the container won't start
+# with a broken schema. This is safe for additive schema changes.
+# TODO: Migrate to `npx prisma migrate deploy` once migration files are generated
+# via `npx prisma migrate dev` in a local development environment.
 echo "=== Syncing database schema ==="
 cd /app/backend
-npx prisma db push --skip-generate 2>&1 || echo "Warning: DB push failed"
+if [ "$NODE_ENV" = "production" ]; then
+  echo "WARNING: Running 'prisma db push' in production. Consider using 'prisma migrate deploy' with migration files instead."
+fi
+npx prisma db push --skip-generate 2>&1
 
-# Seed plans
+# Seed plans — seeding failure is non-fatal (data may already exist)
 echo "=== Seeding database ==="
-node prisma/seed.js 2>&1 || echo "Warning: Seed failed"
+node prisma/seed.js 2>&1 || echo "Warning: Seed failed (this is expected if data already exists)"
 cd /app
 
 # Start backend API on internal port 9090 (not exposed)
