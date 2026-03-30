@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config";
 import { logger } from "./lib/logger";
@@ -15,7 +16,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: false, // We use our own pino logger
     trustProxy: true,
     genReqId: () => crypto.randomUUID(),
-    bodyLimit: 1 * 1024 * 1024, // 1MB — request bodies should be small JSON; file uploads go through presigned URLs
+    bodyLimit: 50 * 1024 * 1024, // 50MB for file uploads
   });
 
   // --- Plugins ---
@@ -65,6 +66,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     timeWindow: "1 minute",
     keyGenerator: (request) => {
       return request.ip;
+    },
+  });
+
+  // --- Multipart file upload ---
+  await app.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB
+      files: 20,
     },
   });
 

@@ -51,6 +51,78 @@ export async function jobsRouter(app: FastifyInstance) {
     return reply.send(stats);
   });
 
+  // Direct file upload + job creation
+  app.post("/jobs/upload", jobCreationRateLimit, async (request, reply) => {
+    const parts = request.parts();
+    const fileBuffers: { name: string; buffer: Buffer; mimetype: string }[] = [];
+    let operation = "";
+    let metadata: Record<string, unknown> = {};
+
+    for await (const part of parts) {
+      if (part.type === "file") {
+        const chunks: Buffer[] = [];
+        for await (const chunk of part.file) {
+          chunks.push(chunk as Buffer);
+        }
+        fileBuffers.push({
+          name: sanitizeFileName(part.filename || "upload.pdf"),
+          buffer: Buffer.concat(chunks),
+          mimetype: part.mimetype,
+        });
+      } else {
+        if (part.fieldname === "operation") {
+          operation = part.value as string;
+        } else if (part.fieldname === "metadata") {
+          try {
+            metadata = JSON.parse(part.value as string);
+          } catch {
+            metadata = {};
+          }
+        }
+      }
+    }
+
+    if (!operation) {
+      return reply.status(400).send({
+        error: { code: "VALIDATION_ERROR", message: "operation field is required" },
+      });
+    }
+
+    if (fileBuffers.length === 0) {
+      return reply.status(400).send({
+        error: { code: "VALIDATION_ERROR", message: "At least one file is required" },
+      });
+    }
+
+    // Upload files to R2 and collect keys
+    const { putObject } = await import("../storage/r2");
+    const fileKeys: string[] = [];
+    for (const file of fileBuffers) {
+      const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${file.name}`;
+      await putObject(key, file.buffer, file.mimetype);
+      fileKeys.push(key);
+    }
+
+    // Map operation string to JobType enum
+    const typeMap: Record<string, string> = {
+      merge: "MERGE",
+      split: "SPLIT",
+      compress: "COMPRESS",
+      convert_to_png: "PDF_TO_PNG",
+      add_text: "ADD_TEXT",
+      watermark: "WATERMARK",
+    };
+
+    const jobType = typeMap[operation] || operation.toUpperCase();
+
+    const job = await createJob(ANONYMOUS_USER_ID, {
+      type: jobType,
+      metadata: { fileKeys, ...metadata },
+    });
+
+    return reply.status(201).send(job);
+  });
+
   // Presigned upload URL — with file type and size validation
   app.post("/jobs/upload-url", jobCreationRateLimit, async (request, reply) => {
     const { fileName, contentType, fileSize } = uploadUrlSchema.parse(request.body);
