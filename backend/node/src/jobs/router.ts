@@ -51,59 +51,37 @@ export async function jobsRouter(app: FastifyInstance) {
     return reply.send(stats);
   });
 
-  // Direct file upload + job creation
-  app.post("/jobs/upload", jobCreationRateLimit, async (request, reply) => {
-    const parts = request.parts();
-    const fileBuffers: { name: string; buffer: Buffer; mimetype: string }[] = [];
-    let operation = "";
-    let metadata: Record<string, unknown> = {};
+  // Upload file buffer + create job (called from Next.js API route)
+  app.post("/jobs/upload-and-process", jobCreationRateLimit, async (request, reply) => {
+    const body = request.body as {
+      files: { name: string; data: string; mimetype: string }[];
+      operation: string;
+      metadata?: Record<string, unknown>;
+    };
 
-    for await (const part of parts) {
-      if (part.type === "file") {
-        const chunks: Buffer[] = [];
-        for await (const chunk of part.file) {
-          chunks.push(chunk as Buffer);
-        }
-        fileBuffers.push({
-          name: sanitizeFileName(part.filename || "upload.pdf"),
-          buffer: Buffer.concat(chunks),
-          mimetype: part.mimetype,
-        });
-      } else {
-        if (part.fieldname === "operation") {
-          operation = part.value as string;
-        } else if (part.fieldname === "metadata") {
-          try {
-            metadata = JSON.parse(part.value as string);
-          } catch {
-            metadata = {};
-          }
-        }
-      }
-    }
-
-    if (!operation) {
+    if (!body.operation) {
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: "operation field is required" },
+        error: { code: "VALIDATION_ERROR", message: "operation is required" },
       });
     }
 
-    if (fileBuffers.length === 0) {
+    if (!body.files || body.files.length === 0) {
       return reply.status(400).send({
         error: { code: "VALIDATION_ERROR", message: "At least one file is required" },
       });
     }
 
-    // Upload files to R2 and collect keys
     const { putObject } = await import("../storage/r2");
     const fileKeys: string[] = [];
-    for (const file of fileBuffers) {
-      const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${file.name}`;
-      await putObject(key, file.buffer, file.mimetype);
+
+    for (const file of body.files) {
+      const safeName = sanitizeFileName(file.name);
+      const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${safeName}`;
+      const buffer = Buffer.from(file.data, "base64");
+      await putObject(key, buffer, file.mimetype);
       fileKeys.push(key);
     }
 
-    // Map operation string to JobType enum
     const typeMap: Record<string, string> = {
       merge: "MERGE",
       split: "SPLIT",
@@ -113,11 +91,11 @@ export async function jobsRouter(app: FastifyInstance) {
       watermark: "WATERMARK",
     };
 
-    const jobType = typeMap[operation] || operation.toUpperCase();
+    const jobType = typeMap[body.operation] || body.operation.toUpperCase();
 
     const job = await createJob(ANONYMOUS_USER_ID, {
       type: jobType,
-      metadata: { fileKeys, ...metadata },
+      metadata: { fileKeys, ...(body.metadata || {}) },
     });
 
     return reply.status(201).send(job);
