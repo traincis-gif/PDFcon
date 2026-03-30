@@ -39,11 +39,16 @@ class ApiClient {
   async uploadAndProcess(
     files: File[],
     operation: string,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
+    metadata?: Record<string, unknown>
   ): Promise<UploadResponse> {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     formData.append('operation', operation);
+
+    if (metadata) {
+      formData.append('metadata', JSON.stringify(metadata));
+    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();

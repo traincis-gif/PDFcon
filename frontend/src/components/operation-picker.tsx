@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { cn, operationLabel } from '@/lib/utils';
-import { Merge, Scissors, Minimize2, Image } from 'lucide-react';
+import { Merge, Scissors, Minimize2, Image, Type, Stamp } from 'lucide-react';
 import type { OperationType } from '@/types';
 
 const operations: {
@@ -30,6 +30,16 @@ const operations: {
     icon: <Image className="h-6 w-6" />,
     description: 'Convert document pages to PNG images',
   },
+  {
+    value: 'add_text',
+    icon: <Type className="h-6 w-6" />,
+    description: 'Add text to any page of your PDF',
+  },
+  {
+    value: 'watermark',
+    icon: <Stamp className="h-6 w-6" />,
+    description: 'Add a watermark across all pages',
+  },
 ];
 
 interface OperationPickerProps {
@@ -39,7 +49,7 @@ interface OperationPickerProps {
 
 export function OperationPicker({ value, onChange }: OperationPickerProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {operations.map((op) => {
         const isSelected = value === op.value;
         return (

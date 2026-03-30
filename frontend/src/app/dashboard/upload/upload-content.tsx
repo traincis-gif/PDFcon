@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileDropzone } from '@/components/file-dropzone';
 import { OperationPicker } from '@/components/operation-picker';
+import { TextOptionsForm, defaultTextOptions } from '@/components/text-options';
+import { WatermarkOptionsForm, defaultWatermarkOptions } from '@/components/watermark-options';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,12 +19,16 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import type { OperationType } from '@/types';
+import type { TextOptions } from '@/components/text-options';
+import type { WatermarkOptions } from '@/components/watermark-options';
 
 const operationHints: Record<OperationType, string> = {
   merge: 'Upload multiple PDF files to combine them into a single document.',
   split: 'Upload one PDF to split it into separate pages.',
   compress: 'Upload one PDF to reduce its file size.',
   convert_to_png: 'Upload a document to convert each page to a PNG image.',
+  add_text: 'Upload one PDF to add text to a specific page.',
+  watermark: 'Upload one PDF to add a watermark across all pages.',
 };
 
 export function UploadContent() {
@@ -32,10 +38,17 @@ export function UploadContent() {
   const [operation, setOperation] = useState<OperationType | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [textOptions, setTextOptions] = useState<TextOptions>(defaultTextOptions);
+  const [watermarkOptions, setWatermarkOptions] = useState<WatermarkOptions>(defaultWatermarkOptions);
 
   const isMultiple = operation === 'merge';
 
-  const canSubmit = files.length > 0 && operation !== null && !uploading;
+  const canSubmit = (() => {
+    if (files.length === 0 || operation === null || uploading) return false;
+    if (operation === 'add_text' && !textOptions.text.trim()) return false;
+    if (operation === 'watermark' && !watermarkOptions.text.trim()) return false;
+    return true;
+  })();
 
   const handleSubmit = async () => {
     if (!canSubmit || !operation) return;
@@ -53,9 +66,30 @@ export function UploadContent() {
     setProgress(0);
 
     try {
+      let metadata: Record<string, unknown> | undefined;
+
+      if (operation === 'add_text') {
+        metadata = {
+          text: textOptions.text,
+          page: textOptions.page,
+          x: textOptions.x,
+          y: textOptions.y,
+          font_size: textOptions.fontSize,
+          color: textOptions.color,
+        };
+      } else if (operation === 'watermark') {
+        metadata = {
+          text: watermarkOptions.text,
+          font_size: watermarkOptions.fontSize,
+          opacity: watermarkOptions.opacity,
+          rotation: watermarkOptions.rotation,
+          color: watermarkOptions.color,
+        };
+      }
+
       const res = await api.uploadAndProcess(files, operation, (pct) => {
         setProgress(pct);
-      });
+      }, metadata);
 
       toast({
         title: 'Job started',
@@ -141,6 +175,16 @@ export function UploadContent() {
           />
         </CardContent>
       </Card>
+
+      {/* Step 3: Options for add_text */}
+      {operation === 'add_text' && (
+        <TextOptionsForm value={textOptions} onChange={setTextOptions} />
+      )}
+
+      {/* Step 3: Options for watermark */}
+      {operation === 'watermark' && (
+        <WatermarkOptionsForm value={watermarkOptions} onChange={setWatermarkOptions} />
+      )}
 
       {/* Upload Progress */}
       {uploading && (

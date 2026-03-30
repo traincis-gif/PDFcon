@@ -31,7 +31,7 @@ const safeUrlString = z
     { message: "URL must use http or https protocol" }
   );
 
-export const jobTypeEnum = z.enum(["MERGE", "SPLIT", "COMPRESS", "PDF_TO_PNG"]);
+export const jobTypeEnum = z.enum(["MERGE", "SPLIT", "COMPRESS", "PDF_TO_PNG", "ADD_TEXT", "WATERMARK"]);
 
 export const createJobSchema = z.object({
   type: jobTypeEnum,
@@ -59,6 +59,26 @@ export const createJobSchema = z.object({
       quality: z.enum(["low", "medium", "high"]).optional().default("medium"),
       // PDF to PNG: DPI
       dpi: z.number().min(72).max(600).optional().default(150),
+      // Add Text: text overlay options
+      text: z
+        .string()
+        .trim()
+        .max(MAX_STRING_LENGTH, "Text is too long")
+        .optional(),
+      page: z.number().int().min(0).optional(),
+      x: z.number().min(0).optional(),
+      y: z.number().min(0).optional(),
+      fontSize: z.number().min(1).max(500).optional(),
+      color: z
+        .object({
+          r: z.number().min(0).max(1),
+          g: z.number().min(0).max(1),
+          b: z.number().min(0).max(1),
+        })
+        .optional(),
+      // Watermark: watermark options
+      opacity: z.number().min(0).max(1).optional(),
+      rotation: z.number().min(-360).max(360).optional(),
       // Callback webhook URL
       callbackUrl: safeUrlString.optional(),
     })

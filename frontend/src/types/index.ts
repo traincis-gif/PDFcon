@@ -1,6 +1,6 @@
 export type JobStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
 
-export type OperationType = 'merge' | 'split' | 'compress' | 'convert_to_png';
+export type OperationType = 'merge' | 'split' | 'compress' | 'convert_to_png' | 'add_text' | 'watermark';
 
 export interface User {
   id: string;

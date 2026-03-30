@@ -51,6 +51,8 @@ enum JobType {
   SPLIT
   COMPRESS
   PDF_TO_PNG
+  ADD_TEXT
+  WATERMARK
 }
 
 model Job {

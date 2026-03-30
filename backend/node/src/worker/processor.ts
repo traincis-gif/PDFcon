@@ -6,6 +6,8 @@ import { mergePdfs } from "../services/pdf-merge";
 import { splitPdf } from "../services/pdf-split";
 import { compressPdf } from "../services/pdf-compress";
 import { pdfToPng } from "../services/pdf-to-png";
+import { addTextToPdf } from "../services/pdf-add-text";
+import { addWatermark } from "../services/pdf-watermark";
 
 interface JobData {
   jobId: string;
@@ -17,6 +19,14 @@ interface JobData {
     pages?: string;
     quality?: "low" | "medium" | "high";
     dpi?: number;
+    text?: string;
+    page?: number;
+    x?: number;
+    y?: number;
+    fontSize?: number;
+    color?: { r: number; g: number; b: number };
+    opacity?: number;
+    rotation?: number;
     callbackUrl?: string;
   };
   planLimits: {
@@ -148,6 +158,53 @@ export async function processJob(job: Job<JobData>): Promise<any> {
         await updateJobStatus(jobId, JobStatus.DONE, {
           outputUrl: result.outputKeys[0],
           metadata: { ...metadata, outputKeys: result.outputKeys, pageCount: result.pageCount },
+        });
+        break;
+      }
+
+      case "ADD_TEXT": {
+        if (!metadata.fileKeys || metadata.fileKeys.length === 0) {
+          throw new Error("Input file key required for add text");
+        }
+        if (!metadata.text) {
+          throw new Error("Text is required for add text");
+        }
+        result = await addTextToPdf({
+          inputKey: metadata.fileKeys[0],
+          outputKey: `${outputBase}/text-added.pdf`,
+          text: metadata.text,
+          page: metadata.page ?? 0,
+          x: metadata.x ?? 0,
+          y: metadata.y ?? 0,
+          fontSize: metadata.fontSize,
+          color: metadata.color,
+        });
+        await updateJobStatus(jobId, JobStatus.DONE, {
+          outputUrl: result.outputKey,
+          metadata: { ...metadata, pageCount: result.pageCount },
+        });
+        break;
+      }
+
+      case "WATERMARK": {
+        if (!metadata.fileKeys || metadata.fileKeys.length === 0) {
+          throw new Error("Input file key required for watermark");
+        }
+        if (!metadata.text) {
+          throw new Error("Text is required for watermark");
+        }
+        result = await addWatermark({
+          inputKey: metadata.fileKeys[0],
+          outputKey: `${outputBase}/watermarked.pdf`,
+          text: metadata.text,
+          fontSize: metadata.fontSize,
+          opacity: metadata.opacity,
+          rotation: metadata.rotation,
+          color: metadata.color,
+        });
+        await updateJobStatus(jobId, JobStatus.DONE, {
+          outputUrl: result.outputKey,
+          metadata: { ...metadata, pageCount: result.pageCount },
         });
         break;
       }

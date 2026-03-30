@@ -32,6 +32,8 @@ export function operationLabel(op: string): string {
     split: 'Split PDF',
     compress: 'Compress',
     convert_to_png: 'Convert to PNG',
+    add_text: 'Add Text',
+    watermark: 'Watermark',
   };
   return labels[op] || op;
 }
