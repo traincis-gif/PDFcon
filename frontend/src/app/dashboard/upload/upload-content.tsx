@@ -68,7 +68,7 @@ const multiFileOps = new Set<OperationType>(['merge', 'img_to_pdf'] as Operation
 const imageInputOps = new Set<OperationType>(['img_to_pdf'] as OperationType[]);
 
 /** Operations that need an options form */
-const opsWithOptions: Set<OperationType> = new Set([
+const opsWithOptions = new Set<OperationType>([
   'add_text',
   'watermark',
   'rotate',
@@ -77,7 +77,7 @@ const opsWithOptions: Set<OperationType> = new Set([
   'page_numbers',
   'redact',
   'sign',
-]);
+] as OperationType[]);
 
 export function UploadContent() {
   const router = useRouter();
