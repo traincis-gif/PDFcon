@@ -31,7 +31,40 @@ const safeUrlString = z
     { message: "URL must use http or https protocol" }
   );
 
-export const jobTypeEnum = z.enum(["MERGE", "SPLIT", "COMPRESS", "PDF_TO_PNG", "ADD_TEXT", "WATERMARK"]);
+export const jobTypeEnum = z.enum([
+  "MERGE",
+  "SPLIT",
+  "COMPRESS",
+  "PDF_TO_PNG",
+  "PDF_TO_JPG",
+  "PDF_TO_TXT",
+  "PDF_TO_DOCX",
+  "PDF_TO_XLSX",
+  "PDF_TO_PPTX",
+  "DOCX_TO_PDF",
+  "XLSX_TO_PDF",
+  "PPTX_TO_PDF",
+  "HTML_TO_PDF",
+  "IMG_TO_PDF",
+  "ADD_TEXT",
+  "WATERMARK",
+  "ROTATE",
+  "REORDER",
+  "PAGE_NUMBERS",
+  "ENCRYPT",
+  "FLATTEN",
+  "REDACT",
+  "SIGN",
+  "OCR",
+]);
+
+const redactRegionSchema = z.object({
+  page: z.number().int().min(1),
+  x: z.number().min(0),
+  y: z.number().min(0),
+  width: z.number().min(1),
+  height: z.number().min(1),
+});
 
 export const createJobSchema = z.object({
   type: jobTypeEnum,
@@ -57,7 +90,7 @@ export const createJobSchema = z.object({
         .optional(),
       // Compress: quality level
       quality: z.enum(["low", "medium", "high"]).optional().default("medium"),
-      // PDF to PNG: DPI
+      // PDF to PNG / JPG: DPI
       dpi: z.number().min(72).max(600).optional().default(150),
       // Add Text: text overlay options
       text: z
@@ -79,6 +112,48 @@ export const createJobSchema = z.object({
       // Watermark: watermark options
       opacity: z.number().min(0).max(1).optional(),
       rotation: z.number().min(-360).max(360).optional(),
+      // Rotate: angle and optional pages
+      angle: z.union([z.literal(90), z.literal(180), z.literal(270)]).optional(),
+      // Reorder: new page order (1-indexed)
+      pageOrder: z.array(z.number().int().min(1)).optional(),
+      // Page Numbers: position, startFrom, format
+      position: z
+        .enum([
+          "top-left",
+          "top-center",
+          "top-right",
+          "bottom-left",
+          "bottom-center",
+          "bottom-right",
+        ])
+        .optional(),
+      startFrom: z.number().int().min(0).optional(),
+      format: z
+        .string()
+        .trim()
+        .max(100, "Format string is too long")
+        .optional(),
+      // Encrypt: password
+      password: z
+        .string()
+        .trim()
+        .max(256, "Password is too long")
+        .optional(),
+      // Redact: regions to black out
+      regions: z.array(redactRegionSchema).max(500).optional(),
+      // Sign: signature image and placement
+      signatureImageBase64: z
+        .string()
+        .max(10_000_000, "Signature image is too large")
+        .optional(),
+      width: z.number().min(1).optional(),
+      height: z.number().min(1).optional(),
+      // OCR: language code
+      language: z
+        .string()
+        .trim()
+        .max(20, "Language code is too long")
+        .optional(),
       // Callback webhook URL
       callbackUrl: safeUrlString.optional(),
     })

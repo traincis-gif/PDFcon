@@ -1,6 +1,30 @@
 export type JobStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
 
-export type OperationType = 'merge' | 'split' | 'compress' | 'convert_to_png' | 'add_text' | 'watermark';
+export type OperationType =
+  | 'merge'
+  | 'split'
+  | 'compress'
+  | 'convert_to_png'
+  | 'convert_to_jpg'
+  | 'convert_to_txt'
+  | 'convert_to_docx'
+  | 'convert_to_xlsx'
+  | 'convert_to_pptx'
+  | 'docx_to_pdf'
+  | 'xlsx_to_pdf'
+  | 'pptx_to_pdf'
+  | 'html_to_pdf'
+  | 'img_to_pdf'
+  | 'add_text'
+  | 'watermark'
+  | 'rotate'
+  | 'reorder'
+  | 'page_numbers'
+  | 'encrypt'
+  | 'flatten'
+  | 'redact'
+  | 'sign'
+  | 'ocr';
 
 export interface User {
   id: string;
