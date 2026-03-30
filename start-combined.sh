@@ -35,4 +35,4 @@ done
 FRONTEND_PORT="${PORT:-3000}"
 echo "=== Starting frontend on :${FRONTEND_PORT} ==="
 cd /app/frontend
-HOSTNAME="0.0.0.0" PORT="${FRONTEND_PORT}" exec node server.js
+HOSTNAME="0.0.0.0" PORT="${FRONTEND_PORT}" BACKEND_URL="http://localhost:9090" exec node server.js
