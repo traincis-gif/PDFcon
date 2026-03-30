@@ -8,6 +8,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config";
 import { logger } from "../lib/logger";
+import { validateStorageKey } from "../middleware/security";
 
 const s3Client = new S3Client({
   region: "auto",
@@ -23,11 +24,20 @@ const s3Client = new S3Client({
 
 const BUCKET = config.R2_BUCKET_NAME;
 
+/** Presigned upload URL TTL: 15 minutes */
+const UPLOAD_URL_EXPIRY = 15 * 60;
+
+/** Presigned download URL TTL: 1 hour */
+const DOWNLOAD_URL_EXPIRY = 60 * 60;
+
 export async function getUploadUrl(
   key: string,
   contentType: string,
-  expiresIn = 3600
+  expiresIn = UPLOAD_URL_EXPIRY
 ): Promise<string> {
+  // Validate key format to prevent path traversal
+  validateStorageKey(key);
+
   const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -35,22 +45,27 @@ export async function getUploadUrl(
   });
 
   const url = await getSignedUrl(s3Client, command, { expiresIn });
-  logger.debug({ key, contentType }, "Generated upload presigned URL");
+  logger.debug({ key, contentType, expiresIn }, "Generated upload presigned URL");
   return url;
 }
 
-export async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+export async function getDownloadUrl(key: string, expiresIn = DOWNLOAD_URL_EXPIRY): Promise<string> {
+  // Validate key format to prevent path traversal
+  validateStorageKey(key);
+
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
   });
 
   const url = await getSignedUrl(s3Client, command, { expiresIn });
-  logger.debug({ key }, "Generated download presigned URL");
+  logger.debug({ key, expiresIn }, "Generated download presigned URL");
   return url;
 }
 
 export async function deleteObject(key: string): Promise<void> {
+  validateStorageKey(key);
+
   const command = new DeleteObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -61,6 +76,8 @@ export async function deleteObject(key: string): Promise<void> {
 }
 
 export async function objectExists(key: string): Promise<boolean> {
+  validateStorageKey(key);
+
   try {
     const command = new HeadObjectCommand({
       Bucket: BUCKET,
@@ -74,6 +91,8 @@ export async function objectExists(key: string): Promise<boolean> {
 }
 
 export async function getObjectBuffer(key: string): Promise<Buffer> {
+  validateStorageKey(key);
+
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -95,6 +114,8 @@ export async function putObject(
   body: Buffer,
   contentType: string
 ): Promise<void> {
+  validateStorageKey(key);
+
   const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: key,

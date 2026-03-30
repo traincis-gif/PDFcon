@@ -28,7 +28,14 @@ export class AppError extends Error {
 
 export class NotFoundError extends AppError {
   constructor(resource: string, id?: string) {
-    super(404, "NOT_FOUND", id ? `${resource} with id '${id}' not found` : `${resource} not found`);
+    // Don't echo the user-supplied ID back in production to avoid information leakage
+    const safeMessage =
+      process.env.NODE_ENV === "production"
+        ? `${resource} not found`
+        : id
+          ? `${resource} with id '${id}' not found`
+          : `${resource} not found`;
+    super(404, "NOT_FOUND", safeMessage);
   }
 }
 
@@ -76,6 +83,8 @@ export function formatZodError(error: ZodError) {
 }
 
 export function errorHandler(error: Error, request: FastifyRequest, reply: FastifyReply) {
+  const isProduction = process.env.NODE_ENV === "production";
+
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
@@ -91,15 +100,40 @@ export function errorHandler(error: Error, request: FastifyRequest, reply: Fasti
     return reply.status(400).send(appErr.toJSON());
   }
 
-  logger.error({ err: error, req: request }, "Unhandled error");
+  // Fastify body size limit errors
+  if ("statusCode" in error && (error as any).statusCode === 413) {
+    return reply.status(413).send({
+      error: {
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Request body is too large",
+      },
+    });
+  }
 
+  // Log the full error internally — never expose to client
+  logger.error(
+    {
+      err: {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      },
+      requestId: request.id,
+      method: request.method,
+      url: request.url,
+    },
+    "Unhandled error"
+  );
+
+  // Never send stack traces or internal error messages to the client in production
   return reply.status(500).send({
     error: {
       code: "INTERNAL_SERVER_ERROR",
-      message:
-        process.env.NODE_ENV === "production"
-          ? "An unexpected error occurred"
-          : error.message,
+      message: isProduction
+        ? "An unexpected error occurred"
+        : error.message,
+      // Only include stack in non-production for debugging
+      ...(isProduction ? {} : { stack: error.stack }),
     },
   });
 }

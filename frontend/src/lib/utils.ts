@@ -15,6 +15,7 @@ export function formatBytes(bytes: number, decimals = 2): string {
 }
 
 export function formatDate(dateString: string): string {
+  if (!dateString) return '--';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -33,6 +34,11 @@ export function operationLabel(op: string): string {
     convert_to_png: 'Convert to PNG',
   };
   return labels[op] || op;
+}
+
+/** Normalise status to lowercase for display comparisons */
+export function normalizeStatus(status: string): string {
+  return status.toLowerCase();
 }
 
 export function statusColor(status: string): string {

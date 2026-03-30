@@ -5,7 +5,12 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useJobStatus } from '@/lib/hooks';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { formatDate, operationLabel, statusColor } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -17,6 +22,7 @@ import {
   XCircle,
   Clock,
   Cog,
+  AlertTriangle,
 } from 'lucide-react';
 
 const statusConfig: Record<
@@ -24,22 +30,32 @@ const statusConfig: Record<
   { icon: React.ReactNode; label: string; progress: number }
 > = {
   pending: {
-    icon: <Clock className="h-8 w-8 text-yellow-500" />,
+    icon: (
+      <div className="relative">
+        <Clock className="h-10 w-10 text-yellow-500" />
+        <span className="absolute inset-0 rounded-full border-2 border-yellow-400 animate-pulse-ring" />
+      </div>
+    ),
     label: 'Queued',
     progress: 15,
   },
   processing: {
-    icon: <Cog className="h-8 w-8 text-blue-500 animate-spin" />,
+    icon: (
+      <div className="relative">
+        <Cog className="h-10 w-10 text-blue-500 animate-spin" />
+        <span className="absolute inset-0 rounded-full border-2 border-blue-400 animate-pulse-ring" />
+      </div>
+    ),
     label: 'Processing',
     progress: 60,
   },
   done: {
-    icon: <CheckCircle2 className="h-8 w-8 text-green-500" />,
+    icon: <CheckCircle2 className="h-10 w-10 text-green-500" />,
     label: 'Completed',
     progress: 100,
   },
   failed: {
-    icon: <XCircle className="h-8 w-8 text-red-500" />,
+    icon: <XCircle className="h-10 w-10 text-red-500" />,
     label: 'Failed',
     progress: 100,
   },
@@ -52,8 +68,9 @@ export default function JobDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading job details...</p>
       </div>
     );
   }
@@ -67,15 +84,28 @@ export default function JobDetailPage() {
           </Button>
         </Link>
         <Card>
-          <CardContent className="py-10 text-center">
-            <p className="text-destructive">Failed to load job details.</p>
+          <CardContent className="flex flex-col items-center py-10 text-center">
+            <AlertTriangle className="h-8 w-8 text-destructive mb-3" />
+            <p className="text-destructive font-medium">
+              Failed to load job details.
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              The job may not exist or there was a network error.
+            </p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const config = statusConfig[job.status] || statusConfig.pending;
+  const status = job.status.toLowerCase();
+  const config = statusConfig[status] || statusConfig.pending;
+  const jobOperation = job.operation || job.type || '';
+  const jobCreatedAt = job.createdAt || job.created_at || '';
+  const jobUpdatedAt = job.updatedAt || job.updated_at || '';
+  const jobFileNames = job.file_names || job.fileNames;
+  const jobFileName = job.file_name || job.fileName;
+  const jobErrorMessage = job.error_message || job.errorMessage;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -91,21 +121,21 @@ export default function JobDetailPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Status */}
-          <div className="flex flex-col items-center text-center py-4">
+          <div className="flex flex-col items-center text-center py-6">
             {config.icon}
-            <h3 className="text-lg font-semibold mt-3">{config.label}</h3>
+            <h3 className="text-lg font-semibold mt-4">{config.label}</h3>
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold mt-2 ${statusColor(
                 job.status
               )}`}
             >
-              {job.status}
+              {status}
             </span>
-            {(job.status === 'pending' || job.status === 'processing') && (
-              <div className="w-full max-w-xs mt-4">
+            {(status === 'pending' || status === 'processing') && (
+              <div className="w-full max-w-xs mt-5">
                 <Progress value={config.progress} />
                 <p className="text-xs text-muted-foreground mt-2">
-                  {job.status === 'pending'
+                  {status === 'pending'
                     ? 'Waiting in queue...'
                     : 'Processing your files...'}
                 </p>
@@ -114,42 +144,57 @@ export default function JobDetailPage() {
           </div>
 
           {/* Info Grid */}
-          <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border p-4">
             <div>
               <p className="text-xs text-muted-foreground">Operation</p>
-              <p className="text-sm font-medium">{operationLabel(job.operation)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Created</p>
-              <p className="text-sm font-medium">{formatDate(job.created_at)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">File(s)</p>
-              <p className="text-sm font-medium truncate">
-                {job.file_names?.join(', ') || job.file_name}
+              <p className="text-sm font-medium">
+                {operationLabel(jobOperation)}
               </p>
             </div>
             <div>
+              <p className="text-xs text-muted-foreground">Created</p>
+              <p className="text-sm font-medium">{formatDate(jobCreatedAt)}</p>
+            </div>
+            {(jobFileNames || jobFileName) && (
+              <div>
+                <p className="text-xs text-muted-foreground">File(s)</p>
+                <p className="text-sm font-medium truncate">
+                  {jobFileNames?.join(', ') || jobFileName}
+                </p>
+              </div>
+            )}
+            <div>
               <p className="text-xs text-muted-foreground">Last Updated</p>
-              <p className="text-sm font-medium">{formatDate(job.updated_at)}</p>
+              <p className="text-sm font-medium">
+                {formatDate(jobUpdatedAt)}
+              </p>
             </div>
           </div>
 
           {/* Error */}
-          {job.status === 'failed' && job.error_message && (
-            <div className="rounded-md bg-destructive/10 text-destructive text-sm p-4">
-              <p className="font-medium mb-1">Error</p>
-              <p>{job.error_message}</p>
+          {status === 'failed' && jobErrorMessage && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 text-sm p-4">
+              <div className="flex items-start gap-3">
+                <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-destructive mb-1">
+                    Processing Failed
+                  </p>
+                  <p className="text-destructive/80">{jobErrorMessage}</p>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Download */}
-          {job.status === 'done' && (
+          {status === 'done' && (
             <div className="flex justify-center pt-2">
               <Button
                 size="lg"
-                className="gap-2"
-                onClick={() => window.open(api.getDownloadUrl(job.id), '_blank')}
+                className="gap-2 text-base px-8"
+                onClick={() =>
+                  window.open(api.getDownloadUrl(job.id), '_blank')
+                }
               >
                 <Download className="h-5 w-5" />
                 Download Result

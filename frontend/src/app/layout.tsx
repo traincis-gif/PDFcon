@@ -6,9 +6,55 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'PDFlow - PDF Processing Made Simple',
+  title: {
+    default: 'PDFlow — Free Online PDF Tools',
+    template: '%s — PDFlow',
+  },
   description:
-    'Merge, split, compress, and convert your PDFs with ease. Fast, secure, cloud-based document processing.',
+    'Free online PDF tools — merge, split, compress, and convert PDFs to PNG instantly. No installation required. Fast, secure, cloud-based document processing with PDFlow.',
+  keywords: [
+    'PDF tools',
+    'merge PDF',
+    'split PDF',
+    'compress PDF',
+    'convert PDF to PNG',
+    'online PDF editor',
+    'free PDF tools',
+    'PDF merger',
+    'PDF splitter',
+    'PDF compressor',
+    'PDFlow',
+  ],
+  metadataBase: new URL('https://pdflow.io'),
+  alternates: {
+    canonical: '/',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    title: 'PDFlow — Free Online PDF Tools',
+    description:
+      'Merge, split, compress, and convert PDFs online for free. Fast, secure, and easy to use.',
+    type: 'website',
+    siteName: 'PDFlow',
+    url: 'https://pdflow.io',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PDFlow — Free Online PDF Tools',
+    description:
+      'Merge, split, compress, and convert PDFs online for free. Fast, secure, and easy to use.',
+  },
 };
 
 export default function RootLayout({

@@ -8,24 +8,56 @@ import { logger } from "./lib/logger";
 import { errorHandler } from "./lib/errors";
 import { jobsRouter } from "./jobs/router";
 import { getQueueStats } from "./worker/queue";
+import { registerSecurityHooks } from "./middleware/security";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = fastify({
     logger: false, // We use our own pino logger
     trustProxy: true,
     genReqId: () => crypto.randomUUID(),
-    bodyLimit: 10 * 1024 * 1024, // 10MB
+    bodyLimit: 1 * 1024 * 1024, // 1MB — request bodies should be small JSON; file uploads go through presigned URLs
   });
 
   // --- Plugins ---
+
+  // CORS: strict origins in production, permissive in development
+  const isProduction = config.NODE_ENV === "production";
+  if (isProduction && config.CORS_ORIGINS === "*") {
+    logger.warn("CORS_ORIGINS is set to wildcard '*' in production. This is insecure. Set explicit origins.");
+  }
   await app.register(cors, {
-    origin: config.CORS_ORIGINS === "*" ? true : config.CORS_ORIGINS.split(","),
+    origin: isProduction
+      ? config.CORS_ORIGINS === "*"
+        ? false // Deny all if wildcard in production (fail-safe)
+        : config.CORS_ORIGINS.split(",").map((o) => o.trim())
+      : config.CORS_ORIGINS === "*"
+        ? true
+        : config.CORS_ORIGINS.split(",").map((o) => o.trim()),
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
+  // Helmet with proper CSP
   await app.register(helmet, {
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: true,
+    crossOriginOpenerPolicy: true,
+    crossOriginResourcePolicy: { policy: "same-origin" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   });
 
   await app.register(rateLimit, {
@@ -35,6 +67,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       return request.ip;
     },
   });
+
+  // --- Security hooks (sanitization, request ID header) ---
+  registerSecurityHooks(app);
 
   // --- Request logging ---
   app.addHook("onRequest", (request, reply, done) => {

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Button } from './ui/button';
 import { Menu, FileText } from 'lucide-react';
 
@@ -14,16 +15,22 @@ export function Header({ onMenuClick }: HeaderProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden"
+        className="lg:hidden shrink-0"
         onClick={onMenuClick}
+        aria-label="Toggle menu"
       >
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="flex items-center gap-2 lg:hidden">
-        <FileText className="h-5 w-5 text-primary" />
-        <span className="font-semibold">PDFlow</span>
-      </div>
+      <Link
+        href="/dashboard"
+        className="flex items-center gap-2 lg:hidden"
+      >
+        <div className="flex items-center justify-center h-7 w-7 rounded-md bg-primary text-primary-foreground">
+          <FileText className="h-4 w-4" />
+        </div>
+        <span className="font-semibold tracking-tight">PDFlow</span>
+      </Link>
 
       <div className="flex-1" />
     </header>

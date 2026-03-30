@@ -1,12 +1,28 @@
 import { FastifyInstance } from "fastify";
-import { createJobSchema, listJobsSchema, jobIdParamSchema } from "./schemas";
+import { createJobSchema, listJobsSchema, jobIdParamSchema, uploadUrlSchema } from "./schemas";
 import { createJob, getJob, listJobs, cancelJob, getUsageStats } from "./service";
 import { getUploadUrl, getDownloadUrl } from "../storage/r2";
+import {
+  sanitizeFileName,
+  validateFileType,
+  validateFileSize,
+  validateStorageKey,
+} from "../middleware/security";
 
 const ANONYMOUS_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export async function jobsRouter(app: FastifyInstance) {
-  app.post("/jobs", async (request, reply) => {
+  // Stricter rate limit for job creation endpoints
+  const jobCreationRateLimit = {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: "1 minute",
+      },
+    },
+  };
+
+  app.post("/jobs", jobCreationRateLimit, async (request, reply) => {
     const body = createJobSchema.parse(request.body);
     const job = await createJob(ANONYMOUS_USER_ID, body);
     return reply.status(201).send(job);
@@ -35,13 +51,26 @@ export async function jobsRouter(app: FastifyInstance) {
     return reply.send(stats);
   });
 
-  // Presigned upload URL
-  app.post("/jobs/upload-url", async (request, reply) => {
-    const { fileName, contentType } = request.body as {
-      fileName: string;
-      contentType: string;
-    };
-    const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${fileName}`;
+  // Presigned upload URL — with file type and size validation
+  app.post("/jobs/upload-url", jobCreationRateLimit, async (request, reply) => {
+    const { fileName, contentType, fileSize } = uploadUrlSchema.parse(request.body);
+
+    // Validate file type
+    validateFileType(contentType, fileName);
+
+    // Validate file size if provided
+    if (fileSize !== undefined) {
+      validateFileSize(fileSize);
+    }
+
+    // Sanitize the file name to prevent path traversal
+    const safeName = sanitizeFileName(fileName);
+
+    const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${safeName}`;
+
+    // Validate the constructed key
+    validateStorageKey(key);
+
     const url = await getUploadUrl(key, contentType);
     return reply.send({ uploadUrl: url, key });
   });
@@ -55,6 +84,10 @@ export async function jobsRouter(app: FastifyInstance) {
         error: { code: "NOT_READY", message: "Job output not yet available" },
       });
     }
+
+    // Validate the storage key before generating a URL
+    validateStorageKey(job.outputUrl);
+
     const url = await getDownloadUrl(job.outputUrl);
     return reply.send({ downloadUrl: url, expiresIn: 3600 });
   });

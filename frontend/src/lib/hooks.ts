@@ -10,7 +10,10 @@ export function useJobs() {
       const data = query.state.data;
       if (!data) return false;
       const hasActive = data.jobs.some(
-        (j) => j.status === 'pending' || j.status === 'processing'
+        (j) => {
+          const s = j.status.toLowerCase();
+          return s === 'pending' || s === 'processing';
+        }
       );
       return hasActive ? 5000 : false;
     },
@@ -24,7 +27,8 @@ export function useJobStatus(id: string) {
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return 3000;
-      if (data.status === 'done' || data.status === 'failed') return false;
+      const s = data.status.toLowerCase();
+      if (s === 'done' || s === 'failed') return false;
       return 3000;
     },
     enabled: !!id,

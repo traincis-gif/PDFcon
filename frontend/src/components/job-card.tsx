@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { formatDate, statusColor } from '@/lib/utils';
+import { formatDate, operationLabel, statusColor } from '@/lib/utils';
 import { Download, ExternalLink, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Job } from '@/types';
@@ -15,27 +15,37 @@ interface JobCardProps {
 
 export function JobCard({ job }: JobCardProps) {
   const status = job.status.toLowerCase();
+  const jobOperation = job.operation || job.type || '';
+  const jobCreatedAt = job.createdAt || job.created_at || '';
+  const jobErrorMessage = job.error_message || job.errorMessage;
+
   return (
     <Card className="transition-shadow hover:shadow-md">
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(job.status)}`}>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(
+                  job.status
+                )}`}
+              >
                 {status === 'processing' && (
                   <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                 )}
                 {status}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {job.type}
+              <span className="text-xs text-muted-foreground font-medium">
+                {operationLabel(jobOperation)}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {formatDate(job.createdAt)}
+              {formatDate(jobCreatedAt)}
             </p>
-            {job.errorMessage && (
-              <p className="text-xs text-destructive mt-1">{job.errorMessage}</p>
+            {jobErrorMessage && (
+              <p className="text-xs text-destructive mt-1 truncate">
+                {jobErrorMessage}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">

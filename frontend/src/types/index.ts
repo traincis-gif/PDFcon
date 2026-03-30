@@ -17,15 +17,23 @@ export interface AuthResponse {
 
 export interface Job {
   id: string;
-  userId: string;
+  userId?: string;
   type: string;
+  operation?: string;
   status: JobStatus;
   inputUrl?: string;
   outputUrl?: string;
   metadata?: Record<string, unknown>;
   errorMessage?: string;
+  error_message?: string;
+  fileName?: string;
+  file_name?: string;
+  fileNames?: string[];
+  file_names?: string[];
   createdAt: string;
+  created_at?: string;
   updatedAt: string;
+  updated_at?: string;
   expiresAt?: string;
 }
 
@@ -40,7 +48,8 @@ export interface JobsResponse {
 }
 
 export interface UploadResponse {
-  id: string;
+  id?: string;
+  job_id?: string;
   status: string;
 }
 
