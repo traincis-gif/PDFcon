@@ -266,7 +266,6 @@ export function UploadContent() {
             onFilesChange={setFiles}
             multiple={isMultiple}
             disabled={!operation}
-            accept={isImageInput ? { 'image/png': ['.png'], 'image/jpeg': ['.jpg', '.jpeg'] } : undefined}
           />
         </CardContent>
       </Card>
