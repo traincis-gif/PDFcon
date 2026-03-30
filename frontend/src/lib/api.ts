@@ -51,7 +51,7 @@ class ApiClient {
     formData.append('username', email);
     formData.append('password', password);
 
-    const res = await fetch(`${API_URL}/api/auth/login`, {
+    const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString(),
@@ -66,18 +66,18 @@ class ApiClient {
   }
 
   async register(name: string, email: string, password: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/api/auth/register', {
+    return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
     });
   }
 
   async getJobs(): Promise<JobsResponse> {
-    return this.request<JobsResponse>('/api/jobs');
+    return this.request<JobsResponse>('/jobs');
   }
 
   async getJob(id: string): Promise<Job> {
-    return this.request<Job>(`/api/jobs/${id}`);
+    return this.request<Job>(`/jobs/${id}`);
   }
 
   async uploadAndProcess(
@@ -92,7 +92,7 @@ class ApiClient {
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_URL}/api/jobs/upload`);
+      xhr.open('POST', `${API_URL}/jobs/upload`);
 
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -132,7 +132,7 @@ class ApiClient {
 
   getDownloadUrl(jobId: string): string {
     const token = this.getToken();
-    return `${API_URL}/api/jobs/${jobId}/download?token=${token}`;
+    return `${API_URL}/jobs/${jobId}/download?token=${token}`;
   }
 }
 
