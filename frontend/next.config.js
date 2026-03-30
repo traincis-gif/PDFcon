@@ -7,9 +7,9 @@ const nextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/auth/:path*', destination: 'http://localhost:8080/auth/:path*' },
-      { source: '/jobs/:path*', destination: 'http://localhost:8080/jobs/:path*' },
-      { source: '/health', destination: 'http://localhost:8080/health' },
+      { source: '/auth/:path*', destination: 'http://localhost:9090/auth/:path*' },
+      { source: '/jobs/:path*', destination: 'http://localhost:9090/jobs/:path*' },
+      { source: '/health', destination: 'http://localhost:9090/health' },
     ];
   },
 };
