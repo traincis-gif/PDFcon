@@ -94,7 +94,7 @@ export async function jobsRouter(app: FastifyInstance) {
     const jobType = typeMap[body.operation] || body.operation.toUpperCase();
 
     const job = await createJob(ANONYMOUS_USER_ID, {
-      type: jobType,
+      type: jobType as any,
       metadata: { fileKeys, ...(body.metadata || {}) },
     });
 
