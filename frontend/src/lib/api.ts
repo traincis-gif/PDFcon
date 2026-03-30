@@ -1,7 +1,7 @@
 import { useAuthStore } from './auth';
 import type { AuthResponse, Job, JobsResponse, UploadResponse } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 class ApiClient {
   private getToken(): string | null {
