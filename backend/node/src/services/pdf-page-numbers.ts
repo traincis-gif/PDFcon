@@ -1,4 +1,5 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+import { embedFont } from "./font-helper";
 
 export type PageNumberPosition =
   | "top-left"
@@ -36,7 +37,7 @@ export async function addPageNumbers(
   } = options;
 
   const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const font = await embedFont(pdfDoc);
   const pages = pdfDoc.getPages();
   const totalPages = pages.length;
   const margin = 40;

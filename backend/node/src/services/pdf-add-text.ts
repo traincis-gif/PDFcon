@@ -1,6 +1,7 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
 import { getObjectBuffer, putObject } from "../storage/r2";
 import { logger } from "../lib/logger";
+import { embedFont } from "./font-helper";
 
 export interface AddTextOptions {
   inputKey: string;
@@ -63,7 +64,7 @@ export async function addTextToPdf(
     );
   }
 
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const font = await embedFont(pdfDoc);
   const pdfPage = pdfDoc.getPage(page);
 
   pdfPage.drawText(text, {

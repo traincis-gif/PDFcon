@@ -1,6 +1,7 @@
-import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
+import { PDFDocument, rgb, degrees } from "pdf-lib";
 import { getObjectBuffer, putObject } from "../storage/r2";
 import { logger } from "../lib/logger";
+import { embedFont } from "./font-helper";
 
 export interface WatermarkOptions {
   inputKey: string;
@@ -53,7 +54,7 @@ export async function addWatermark(
 
   const pdfBytes = await getObjectBuffer(inputKey);
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const font = await embedFont(pdfDoc);
 
   const pages = pdfDoc.getPages();
   const textWidth = font.widthOfTextAtSize(text, fontSize);
