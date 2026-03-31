@@ -9,6 +9,7 @@ import { addSignature } from "../../services/pdf-sign";
 import { addTextToPdf } from "../../services/pdf-add-text";
 import { addWatermark } from "../../services/pdf-watermark";
 import { editPdfText } from "../../services/pdf-edit-text";
+import { managePdfPages } from "../../services/pdf-manage-pages";
 
 function requireFileKey(metadata: Record<string, any>, label: string): string {
   if (!metadata.fileKeys || metadata.fileKeys.length === 0) {
@@ -176,5 +177,48 @@ export const transformHandlers: Record<string, OperationHandler> = {
     });
     ctx.reportProgress(100);
     return { outputKey: result.outputKey, contentType: "application/pdf" };
+  },
+
+  MANAGE_PAGES: async (jobId, metadata, ctx) => {
+    const inputKey = requireFileKey(metadata, "manage pages");
+    if (!metadata.operations || metadata.operations.length === 0) {
+      throw new Error("At least one operation is required for manage pages");
+    }
+    ctx.reportProgress(10);
+    const pdfBuffer = await ctx.getFile(inputKey);
+    ctx.reportProgress(20);
+
+    // Load any imported PDF files (additional file keys beyond the first)
+    const importBuffers = new Map<string, Buffer>();
+    if (metadata.fileKeys && metadata.fileKeys.length > 1) {
+      // Build a mapping from fileId references in operations to actual file keys
+      const importOps = (metadata.operations as any[]).filter(
+        (op: any) => op.type === "import" && op.fileId
+      );
+      const uniqueFileIds = [...new Set(importOps.map((op: any) => op.fileId))];
+
+      // The additional file keys (index 1+) correspond to imported files in order
+      for (let i = 0; i < uniqueFileIds.length && i + 1 < metadata.fileKeys.length; i++) {
+        const buf = await ctx.getFile(metadata.fileKeys[i + 1]);
+        importBuffers.set(uniqueFileIds[i], buf);
+      }
+    }
+
+    ctx.reportProgress(40);
+    const result = await managePdfPages({
+      inputBuffer: pdfBuffer,
+      operations: metadata.operations,
+      importBuffers: importBuffers.size > 0 ? importBuffers : undefined,
+    });
+    ctx.reportProgress(80);
+
+    const outputKey = `${metadata._outputBase}/managed.pdf`;
+    await ctx.putFile(outputKey, result.resultBuffer, "application/pdf");
+    await ctx.updateStatus(jobId, "DONE", {
+      outputUrl: outputKey,
+      metadata: { ...metadata, pageCount: result.pageCount },
+    });
+    ctx.reportProgress(100);
+    return { outputKey, contentType: "application/pdf" };
   },
 };

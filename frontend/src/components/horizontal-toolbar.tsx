@@ -27,6 +27,7 @@ import {
   FileImage,
   FileOutput,
   TextCursorInput,
+  LayoutGrid,
 } from 'lucide-react';
 
 const iconMap: Record<OperationType, React.ElementType> = {
@@ -55,6 +56,7 @@ const iconMap: Record<OperationType, React.ElementType> = {
   redact: EyeOff,
   sign: PenTool,
   ocr: ScanText,
+  manage_pages: LayoutGrid,
 };
 
 /** Group definitions for PDF toolbar display */
@@ -65,7 +67,7 @@ interface ToolGroupDef {
 
 const pdfToolGroups: ToolGroupDef[] = [
   { label: 'Edit', tools: ['edit_text', 'add_text', 'watermark', 'redact', 'sign'] },
-  { label: 'Organize', tools: ['merge', 'split', 'rotate', 'reorder', 'page_numbers'] },
+  { label: 'Organize', tools: ['merge', 'split', 'rotate', 'reorder', 'manage_pages', 'page_numbers'] },
   { label: 'Optimize', tools: ['compress', 'flatten', 'encrypt'] },
   {
     label: 'Convert',

@@ -60,6 +60,7 @@ export const toolsForFileType: Record<FileCategory, OperationType[]> = {
     'split',
     'rotate',
     'reorder',
+    'manage_pages',
     'page_numbers',
     'compress',
     'flatten',

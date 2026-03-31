@@ -25,7 +25,8 @@ export type OperationType =
   | 'redact'
   | 'sign'
   | 'ocr'
-  | 'edit_text';
+  | 'edit_text'
+  | 'manage_pages';
 
 export interface User {
   id: string;

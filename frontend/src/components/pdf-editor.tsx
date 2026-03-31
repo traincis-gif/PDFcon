@@ -10,6 +10,7 @@ import { FloatingToolPanel } from '@/components/floating-tool-panel';
 import { TextPlacementPopup } from '@/components/text-placement-popup';
 import { ImagePreview } from '@/components/image-preview';
 import { PageReorderView } from '@/components/page-reorder-view';
+import { PageManager } from '@/components/page-manager';
 import { BatchPanel } from '@/components/batch-panel';
 import { detectFileType, toolsForFileType, getDefaultTool, isBatchOperation } from '@/lib/file-types';
 import type { FileCategory } from '@/lib/file-types';
@@ -178,6 +179,9 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
   // Reorder view state
   const [showReorderView, setShowReorderView] = useState(false);
 
+  // Page manager view state
+  const [showPageManager, setShowPageManager] = useState(false);
+
   // Batch panel state
   const [showBatchPanel, setShowBatchPanel] = useState(false);
 
@@ -214,6 +218,13 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
         setShowReorderView(false);
       }
 
+      // Show page manager when manage_pages is selected
+      if (tool === 'manage_pages') {
+        setShowPageManager(true);
+      } else {
+        setShowPageManager(false);
+      }
+
       // If switching away from multi-file op, trim to one file
       if (!multiFileOps.has(tool) && files.length > 1) {
         setFiles(files.slice(0, 1));
@@ -232,6 +243,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     setPlacedTexts([]);
     setTextEdits([]);
     setShowReorderView(false);
+    setShowPageManager(false);
     setShowBatchPanel(false);
   }, []);
 
@@ -465,6 +477,39 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     }
   };
 
+  // Handle page manager save
+  const handlePageManagerSave = useCallback(async (operations: any[], importedFilesList: File[]) => {
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
+    setJobId(null);
+
+    try {
+      const allFiles = [files[0], ...importedFilesList];
+      const metadata = { operations };
+      const res = await api.uploadAndProcess(allFiles, 'manage_pages', (pct) => {
+        setUploadProgress(pct);
+      }, metadata);
+
+      const id = res.job_id || res.id;
+      if (id) {
+        setJobId(id);
+        setShowPageManager(false);
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed');
+      toast({
+        title: 'Upload failed',
+        description: err.message || 'Something went wrong',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [files, toast]);
+
   // Handle reorder apply from PageReorderView
   const handleReorderApply = useCallback(async (pageOrder: number[]) => {
     setToolOptions((prev) => ({
@@ -542,6 +587,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     setPlacedTexts([]);
     setTextEdits([]);
     setShowReorderView(false);
+    setShowPageManager(false);
     setShowBatchPanel(false);
   };
 
@@ -603,7 +649,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden">
       {/* Horizontal toolbar - replaces sidebar */}
-      {primaryFile && !showJobOverlay && !showReorderView && !showBatchPanel && (
+      {primaryFile && !showJobOverlay && !showReorderView && !showPageManager && !showBatchPanel && (
         <HorizontalToolbar
           fileCategory={fileCategory}
           selectedTool={effectiveSelectedTool}
@@ -612,7 +658,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
       )}
 
       {/* Viewer toolbar (when we have a PDF file) */}
-      {primaryFile && canPreviewPdf && !showReorderView && !showBatchPanel && (
+      {primaryFile && canPreviewPdf && !showReorderView && !showPageManager && !showBatchPanel && (
         <ViewerToolbar
           fileName={primaryFile.name}
           fileSize={primaryFile.size}
@@ -634,8 +680,15 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
           />
         )}
 
-        {/* Reorder view - replaces the PDF viewer when reorder is active */}
-        {showReorderView && primaryFile && canPreviewPdf && !showJobOverlay ? (
+        {/* Page Manager view - replaces everything when manage_pages is active */}
+        {showPageManager && primaryFile && canPreviewPdf && !showJobOverlay ? (
+          <PageManager
+            file={primaryFile}
+            onSave={handlePageManagerSave}
+            onCancel={handleToolDeselect}
+            isProcessing={isUploading}
+          />
+        ) : showReorderView && primaryFile && canPreviewPdf && !showJobOverlay ? (
           <PageReorderView
             file={primaryFile}
             onApply={handleReorderApply}

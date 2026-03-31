@@ -57,6 +57,7 @@ export const jobTypeEnum = z.enum([
   "SIGN",
   "OCR",
   "EDIT_TEXT",
+  "MANAGE_PAGES",
 ]);
 
 const redactRegionSchema = z.object({
@@ -160,6 +161,19 @@ export const createJobSchema = z.object({
         newText: z.string().max(MAX_STRING_LENGTH),
         fontSize: z.number().min(1).max(500),
       })).max(500).optional(),
+      // Manage Pages: operations array
+      operations: z.array(z.object({
+        type: z.enum(["delete", "rotate", "reorder", "duplicate", "addBlank", "import"]),
+        pages: z.array(z.number().int()).optional(),
+        angle: z.number().optional(),
+        pageOrder: z.array(z.number().int()).optional(),
+        sourcePage: z.number().int().optional(),
+        insertAfter: z.number().int().optional(),
+        insertAt: z.number().int().optional(),
+        width: z.number().optional(),
+        height: z.number().optional(),
+        fileId: z.string().optional(),
+      })).max(200).optional(),
       // OCR: language code
       language: z
         .string()

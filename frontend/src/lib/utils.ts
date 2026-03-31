@@ -53,6 +53,7 @@ export function operationLabel(op: string): string {
     redact: 'Redact',
     sign: 'Sign',
     ocr: 'OCR',
+    manage_pages: 'Manage Pages',
   };
   return labels[op] || op;
 }

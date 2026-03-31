@@ -70,6 +70,7 @@ enum JobType {
   SIGN
   OCR
   EDIT_TEXT
+  MANAGE_PAGES
 }
 
 model Job {
