@@ -89,3 +89,20 @@ export interface ApiError {
     details?: unknown;
   };
 }
+
+export interface RichTextPlacement {
+  text: string;
+  page: number;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  color: string;
+  alignment: 'left' | 'center' | 'right';
+  lineHeight: number;
+  opacity: number;
+}

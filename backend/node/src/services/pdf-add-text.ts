@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from "pdf-lib";
+import { PDFDocument, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { getObjectBuffer, putObject } from "../storage/r2";
 import { logger } from "../lib/logger";
 import { embedFont } from "./font-helper";
@@ -9,7 +9,15 @@ export interface TextPlacement {
   x: number;
   y: number;
   fontSize?: number;
+  fontFamily?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
   color?: string | { r: number; g: number; b: number };
+  alignment?: 'left' | 'center' | 'right';
+  lineHeight?: number;
+  opacity?: number;
 }
 
 export interface AddTextOptions {
@@ -49,6 +57,13 @@ function parseColor(
 }
 
 /**
+ * Clamp a color component to [0, 1].
+ */
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, v));
+}
+
+/**
  * Resolve the list of placements from options. If an explicit `placements`
  * array is provided it takes precedence; otherwise we build a single-element
  * array from the legacy top-level fields for backward compatibility.
@@ -74,6 +89,95 @@ function resolvePlacements(options: AddTextOptions): TextPlacement[] {
   ];
 }
 
+/**
+ * Draw a single text placement on a PDF page, handling rich formatting
+ * (bold, italic, underline, strikethrough, alignment, opacity, multi-line).
+ */
+async function drawPlacement(
+  pdfDoc: PDFDocument,
+  pdfPage: PDFPage,
+  placement: TextPlacement
+): Promise<void> {
+  const {
+    text,
+    x,
+    y,
+    fontSize = 12,
+    fontFamily,
+    bold,
+    italic,
+    underline = false,
+    strikethrough = false,
+    color: rawColor,
+    alignment = 'left',
+    lineHeight = 1.2,
+    opacity,
+  } = placement;
+
+  const color = parseColor(rawColor);
+  const pdfColor = rgb(clamp01(color.r), clamp01(color.g), clamp01(color.b));
+
+  // Embed the correct font variant for this placement
+  const font = await embedFont(pdfDoc, { fontFamily, bold, italic });
+
+  const lines = text.split('\n');
+  const lineStep = lineHeight * fontSize;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const textWidth = font.widthOfTextAtSize(line, fontSize);
+
+    // Calculate x position based on alignment
+    let drawX = x;
+    if (alignment === 'center') {
+      drawX = x - textWidth / 2;
+    } else if (alignment === 'right') {
+      drawX = x - textWidth;
+    }
+
+    // Each successive line moves downward (PDF y-axis goes up, so subtract)
+    const drawY = y - i * lineStep;
+
+    // Draw the text
+    const drawOptions: Parameters<PDFPage['drawText']>[1] = {
+      x: drawX,
+      y: drawY,
+      size: fontSize,
+      font,
+      color: pdfColor,
+    };
+    if (opacity !== undefined) {
+      drawOptions.opacity = clamp01(opacity);
+    }
+    pdfPage.drawText(line, drawOptions);
+
+    // Decorations: underline and strikethrough
+    if (underline) {
+      // Draw a line just below the text baseline
+      const underlineY = drawY - fontSize * 0.15;
+      pdfPage.drawLine({
+        start: { x: drawX, y: underlineY },
+        end: { x: drawX + textWidth, y: underlineY },
+        thickness: fontSize * 0.05,
+        color: pdfColor,
+        opacity: opacity !== undefined ? clamp01(opacity) : undefined,
+      });
+    }
+
+    if (strikethrough) {
+      // Draw a line through the vertical middle of the text
+      const strikeY = drawY + fontSize * 0.3;
+      pdfPage.drawLine({
+        start: { x: drawX, y: strikeY },
+        end: { x: drawX + textWidth, y: strikeY },
+        thickness: fontSize * 0.05,
+        color: pdfColor,
+        opacity: opacity !== undefined ? clamp01(opacity) : undefined,
+      });
+    }
+  }
+}
+
 export async function addTextToPdf(
   options: AddTextOptions
 ): Promise<{ outputKey: string; pageCount: number }> {
@@ -90,11 +194,8 @@ export async function addTextToPdf(
 
   const pageCount = pdfDoc.getPageCount();
 
-  // Embed the font once and reuse for all placements
-  const font = await embedFont(pdfDoc);
-
   for (const placement of placements) {
-    const { text, page, x, y, fontSize = 12, color: rawColor } = placement;
+    const { page } = placement;
 
     if (page < 0 || page >= pageCount) {
       throw new Error(
@@ -102,20 +203,8 @@ export async function addTextToPdf(
       );
     }
 
-    const color = parseColor(rawColor);
     const pdfPage = pdfDoc.getPage(page);
-
-    pdfPage.drawText(text, {
-      x,
-      y,
-      size: fontSize,
-      font,
-      color: rgb(
-        Math.min(1, Math.max(0, color.r)),
-        Math.min(1, Math.max(0, color.g)),
-        Math.min(1, Math.max(0, color.b))
-      ),
-    });
+    await drawPlacement(pdfDoc, pdfPage, placement);
   }
 
   const modifiedBytes = await pdfDoc.save();

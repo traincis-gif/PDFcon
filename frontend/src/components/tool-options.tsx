@@ -253,7 +253,15 @@ export function buildMetadata(
         x: options.textOptions.x,
         y: options.textOptions.y,
         fontSize: options.textOptions.fontSize,
+        fontFamily: options.textOptions.fontFamily,
+        bold: options.textOptions.bold,
+        italic: options.textOptions.italic,
+        underline: options.textOptions.underline,
+        strikethrough: options.textOptions.strikethrough,
         color: options.textOptions.color,
+        alignment: options.textOptions.alignment,
+        lineHeight: options.textOptions.lineHeight,
+        opacity: options.textOptions.opacity,
       };
     case 'watermark':
       return {

@@ -42,7 +42,7 @@ import {
   RotateCcw,
   Package,
 } from 'lucide-react';
-import type { OperationType } from '@/types';
+import type { OperationType, RichTextPlacement } from '@/types';
 
 /** Operations that accept multiple files */
 const multiFileOps = new Set<OperationType>(['merge', 'img_to_pdf']);
@@ -126,14 +126,22 @@ interface PdfEditorProps {
   onStartOver?: () => void;
 }
 
-/** Multi-text marker for adding multiple text annotations */
+/** Multi-text marker for adding multiple text annotations (rich text) */
 interface PlacedText {
   page: number;
   x: number;
   y: number;
   text: string;
   fontSize: number;
+  fontFamily: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
   color: string;
+  alignment: 'left' | 'center' | 'right';
+  lineHeight: number;
+  opacity: number;
 }
 
 export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
@@ -231,15 +239,23 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
   );
 
   const handleTextPopupAdd = useCallback(
-    (text: string, fontSize: number, color: string) => {
+    (placement: Omit<RichTextPlacement, 'page' | 'x' | 'y'>) => {
       if (!textPopup) return;
       const newText: PlacedText = {
         page: textPopup.page,
         x: textPopup.pdfX,
         y: textPopup.pdfY,
-        text,
-        fontSize,
-        color,
+        text: placement.text,
+        fontSize: placement.fontSize,
+        fontFamily: placement.fontFamily,
+        bold: placement.bold,
+        italic: placement.italic,
+        underline: placement.underline,
+        strikethrough: placement.strikethrough,
+        color: placement.color,
+        alignment: placement.alignment,
+        lineHeight: placement.lineHeight,
+        opacity: placement.opacity,
       };
       setPlacedTexts((prev) => [...prev, newText]);
 
@@ -248,12 +264,20 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
         ...prev,
         textOptions: {
           ...prev.textOptions,
-          text,
+          text: placement.text,
           page: textPopup.page,
           x: textPopup.pdfX,
           y: textPopup.pdfY,
-          fontSize,
-          color,
+          fontSize: placement.fontSize,
+          fontFamily: placement.fontFamily,
+          bold: placement.bold,
+          italic: placement.italic,
+          underline: placement.underline,
+          strikethrough: placement.strikethrough,
+          color: placement.color,
+          alignment: placement.alignment,
+          lineHeight: placement.lineHeight,
+          opacity: placement.opacity,
         },
         textPlacementSet: true,
       }));

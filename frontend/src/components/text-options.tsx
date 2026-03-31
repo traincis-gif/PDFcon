@@ -10,7 +10,15 @@ export interface TextOptions {
   x: number;
   y: number;
   fontSize: number;
+  fontFamily: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
   color: string;
+  alignment: 'left' | 'center' | 'right';
+  lineHeight: number;
+  opacity: number;
 }
 
 export const defaultTextOptions: TextOptions = {
@@ -19,7 +27,15 @@ export const defaultTextOptions: TextOptions = {
   x: 50,
   y: 700,
   fontSize: 16,
+  fontFamily: 'Arial',
+  bold: false,
+  italic: false,
+  underline: false,
+  strikethrough: false,
   color: '#000000',
+  alignment: 'left',
+  lineHeight: 1.5,
+  opacity: 1,
 };
 
 const colorPresets = [
