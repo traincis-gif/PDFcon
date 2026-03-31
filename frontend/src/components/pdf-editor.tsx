@@ -3,8 +3,10 @@
 import React, { useState, useCallback } from 'react';
 import { ToolSidebar, ToolBarMobile } from '@/components/tool-sidebar';
 import { FileDropzone } from '@/components/file-dropzone';
+import { PdfViewer, FIT_WIDTH } from '@/components/pdf-viewer';
+import { ViewerToolbar } from '@/components/viewer-toolbar';
+import { BottomPanel } from '@/components/bottom-panel';
 import {
-  ToolOptions,
   buildMetadata,
   validateOptions,
   defaultToolOptionsState,
@@ -14,15 +16,17 @@ import { JobProgress } from '@/components/job-progress';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { operationLabel } from '@/lib/utils';
+import { operationLabel, formatBytes } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import {
   Loader2,
   Zap,
   FileText,
   X,
-  ChevronsLeft,
-  ChevronsRight,
+  Download,
+  Eye,
+  FileIcon,
+  Upload,
 } from 'lucide-react';
 import type { OperationType } from '@/types';
 
@@ -38,11 +42,26 @@ const nonPdfInputOps: Partial<Record<OperationType, string[]>> = {
   img_to_pdf: ['.png', '.jpg', '.jpeg', '.webp'],
 };
 
+/** Operations whose output is NOT a PDF (so we can't preview result) */
+const nonPdfOutputOps = new Set<OperationType>([
+  'convert_to_png',
+  'convert_to_jpg',
+  'convert_to_txt',
+  'convert_to_docx',
+  'convert_to_xlsx',
+  'convert_to_pptx',
+]);
+
 /** Get accepted extensions for a given operation */
 function getAcceptedExtensions(op: OperationType | null): string[] | undefined {
-  if (!op) return undefined; // accept all
+  if (!op) return undefined;
   if (nonPdfInputOps[op]) return nonPdfInputOps[op];
   return ['.pdf'];
+}
+
+/** Check if file is a PDF */
+function isPdfFile(file: File): boolean {
+  return file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
 }
 
 interface PdfEditorProps {
@@ -58,9 +77,15 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // PDF viewer state
+  const [zoom, setZoom] = useState<number>(FIT_WIDTH);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
 
   const isMultiple = selectedTool !== null && multiFileOps.has(selectedTool);
+  const primaryFile = files[0] || null;
+  const canPreviewPdf = primaryFile && isPdfFile(primaryFile);
 
   const handleToolSelect = useCallback(
     (tool: OperationType) => {
@@ -76,7 +101,6 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
       const currentSet = currentAccepted ? currentAccepted.join(',') : '';
       const newSet = newAccepted ? newAccepted.join(',') : '';
       if (currentSet !== newSet && files.length > 0) {
-        // Check if existing files match the new tool's accepted types
         const exts = newAccepted || [];
         const allValid = files.every((f) => {
           const ext = '.' + f.name.split('.').pop()?.toLowerCase();
@@ -94,6 +118,14 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
     },
     [selectedTool, files]
   );
+
+  const handleToolDeselect = useCallback(() => {
+    setSelectedTool(null);
+    setJobId(null);
+    setUploadError(null);
+    setUploadProgress(0);
+    setIsUploading(false);
+  }, []);
 
   const canProcess = (() => {
     if (files.length === 0 || !selectedTool || isUploading || jobId) return false;
@@ -146,45 +178,26 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
   };
 
   const acceptedExtensions = getAcceptedExtensions(selectedTool);
+  const showBottomPanel = selectedTool && !jobId;
+  const showJobOverlay = isUploading || jobId || uploadError;
+  const mergeNeedsMore = selectedTool === 'merge' && files.length > 0 && files.length < 2;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside
-        className={cn(
-          'hidden lg:flex flex-col border-r bg-background transition-all duration-200 shrink-0',
-          sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-56'
-        )}
-      >
-        <div className="flex items-center justify-between px-3 py-2 border-b">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      {/* Desktop sidebar - compact icon-only */}
+      <aside className="hidden lg:flex flex-col border-r bg-background w-14 shrink-0">
+        <div className="flex items-center justify-center px-1 py-2 border-b">
+          <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
             Tools
           </span>
-          <button
-            onClick={() => setSidebarCollapsed(true)}
-            className="p-1 hover:bg-accent rounded-md transition-colors text-muted-foreground hover:text-foreground"
-            title="Collapse sidebar"
-          >
-            <ChevronsLeft className="h-4 w-4" />
-          </button>
         </div>
         <ToolSidebar
           selectedTool={selectedTool}
           onSelectTool={handleToolSelect}
           className="flex-1 overflow-hidden"
+          compact
         />
       </aside>
-
-      {/* Collapsed sidebar expand button */}
-      {sidebarCollapsed && (
-        <button
-          onClick={() => setSidebarCollapsed(false)}
-          className="hidden lg:flex items-center justify-center w-8 border-r bg-background hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-          title="Expand sidebar"
-        >
-          <ChevronsRight className="h-4 w-4" />
-        </button>
-      )}
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -193,93 +206,124 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
           <ToolBarMobile selectedTool={selectedTool} onSelectTool={handleToolSelect} />
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-5">
-            {/* File area */}
-            <section>
-              <FileDropzone
-                files={files}
-                onFilesChange={setFiles}
-                multiple={isMultiple}
-                disabled={isUploading || !!jobId}
-                mode="compact"
-                acceptedExtensions={acceptedExtensions}
-                hint={
-                  selectedTool && nonPdfInputOps[selectedTool]
-                    ? `Accepted formats: ${nonPdfInputOps[selectedTool]!.join(', ')}`
-                    : undefined
-                }
-              />
-            </section>
+        {/* Viewer toolbar (when we have a file) */}
+        {primaryFile && (
+          <ViewerToolbar
+            fileName={primaryFile.name}
+            fileSize={primaryFile.size}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            zoom={zoom}
+            onZoomChange={setZoom}
+          />
+        )}
 
-            {/* Tool not selected prompt */}
-            {files.length > 0 && !selectedTool && (
-              <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-6 text-center">
-                <Zap className="h-8 w-8 text-primary mx-auto mb-2" />
-                <h3 className="text-sm font-semibold mb-1">Select a tool to get started</h3>
-                <p className="text-xs text-muted-foreground">
-                  Pick a tool from the sidebar to process your file.
-                </p>
-              </div>
-            )}
-
-            {/* Tool options */}
-            {selectedTool && (
-              <section>
-                <ToolOptions
-                  tool={selectedTool}
-                  options={toolOptions}
-                  onOptionsChange={setToolOptions}
+        {/* Content area */}
+        <div className="flex-1 relative overflow-hidden flex flex-col">
+          {/* PDF Viewer / File preview area */}
+          {!primaryFile ? (
+            /* No file: show dropzone */
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="w-full max-w-lg">
+                <FileDropzone
+                  files={files}
+                  onFilesChange={setFiles}
+                  multiple={isMultiple}
+                  disabled={isUploading || !!jobId}
+                  mode="default"
+                  acceptedExtensions={acceptedExtensions}
+                  hint={
+                    selectedTool && nonPdfInputOps[selectedTool]
+                      ? `Accepted formats: ${nonPdfInputOps[selectedTool]!.join(', ')}`
+                      : undefined
+                  }
                 />
-              </section>
-            )}
+                {!selectedTool && (
+                  <div className="mt-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Upload a file, then pick a tool from the sidebar.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : canPreviewPdf ? (
+            /* PDF file: show PDF viewer */
+            <div className="flex-1 overflow-hidden relative">
+              <PdfViewer
+                file={primaryFile}
+                zoom={zoom}
+                onZoomChange={setZoom}
+                onPageCountChange={setTotalPages}
+                onCurrentPageChange={setCurrentPage}
+                className="h-full"
+              />
 
-            {/* Merge hint */}
-            {selectedTool === 'merge' && files.length > 0 && files.length < 2 && (
-              <div className="rounded-lg border border-yellow-500/20 bg-yellow-50/50 dark:bg-yellow-900/10 p-3">
-                <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                  Merge requires at least 2 files. Add more files above.
+              {/* Multi-file indicator for merge */}
+              {isMultiple && files.length > 1 && (
+                <div className="absolute top-3 left-3 bg-background/90 backdrop-blur border rounded-lg px-3 py-2 shadow-sm">
+                  <p className="text-xs font-medium">{files.length} files selected</p>
+                  <p className="text-xs text-muted-foreground">Previewing first file</p>
+                </div>
+              )}
+
+              {/* File change overlay button */}
+              <div className="absolute top-3 right-3 flex gap-2">
+                {isMultiple && (
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      className="hidden"
+                      multiple
+                      accept={acceptedExtensions?.join(',') || '.pdf'}
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          setFiles([...files, ...Array.from(e.target.files)]);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    <div className="bg-background/90 backdrop-blur border rounded-md px-2.5 py-1.5 shadow-sm hover:bg-accent transition-colors flex items-center gap-1.5 text-xs font-medium">
+                      <Upload className="h-3 w-3" />
+                      Add files
+                    </div>
+                  </label>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Non-PDF file: show file icon card */
+            <div className="flex-1 flex items-center justify-center p-6 bg-muted/30">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="rounded-2xl bg-primary/10 p-6">
+                  <FileIcon className="h-16 w-16 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{primaryFile.name}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatBytes(primaryFile.size)}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Preview is not available for this file type. Select a tool and process it.
                 </p>
-              </div>
-            )}
-
-            {/* Process button */}
-            {selectedTool && files.length > 0 && !jobId && (
-              <div className="flex items-center gap-3">
                 <Button
-                  size="lg"
-                  onClick={handleProcess}
-                  disabled={!canProcess}
-                  className="gap-2 flex-1 sm:flex-none sm:min-w-[200px]"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFiles([])}
+                  className="gap-1.5"
                 >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Process: {operationLabel(selectedTool)}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  onClick={handleFullReset}
-                  className="text-muted-foreground"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
+                  <X className="h-3.5 w-3.5" />
+                  Remove file
                 </Button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Job progress */}
-            {(isUploading || jobId || uploadError) && (
-              <section>
+          {/* Job progress overlay */}
+          {showJobOverlay && (
+            <div className="absolute inset-x-0 bottom-0 z-20 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pt-12">
+              <div className="max-w-xl mx-auto">
                 <JobProgress
                   uploadProgress={uploadProgress}
                   isUploading={isUploading}
@@ -287,24 +331,46 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
                   onReset={handleReset}
                   uploadError={uploadError}
                 />
-              </section>
-            )}
-
-            {/* After completion: apply another tool */}
-            {jobId && (
-              <div className="flex items-center gap-3 pt-2">
-                <Button variant="outline" onClick={handleReset} className="gap-2">
-                  <Zap className="h-4 w-4" />
-                  Apply another tool to the same file
-                </Button>
-                <Button variant="ghost" onClick={handleFullReset} className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  Start with a new file
-                </Button>
+                {/* Post-completion actions */}
+                {jobId && (
+                  <div className="flex items-center justify-center gap-3 pt-3">
+                    <Button variant="outline" size="sm" onClick={handleReset} className="gap-2">
+                      <Zap className="h-3.5 w-3.5" />
+                      Apply another tool
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={handleFullReset} className="gap-2">
+                      <FileText className="h-3.5 w-3.5" />
+                      New file
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+
+        {/* Tool not selected prompt - subtle banner */}
+        {files.length > 0 && !selectedTool && !showJobOverlay && (
+          <div className="border-t bg-primary/5 px-4 py-3 flex items-center justify-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Select a tool from the sidebar to get started</span>
+          </div>
+        )}
+
+        {/* Bottom panel for tool options */}
+        {showBottomPanel && (
+          <BottomPanel
+            tool={selectedTool}
+            toolOptions={toolOptions}
+            onToolOptionsChange={setToolOptions}
+            onProcess={handleProcess}
+            onClose={handleToolDeselect}
+            canProcess={canProcess}
+            isUploading={isUploading}
+            hasFiles={files.length > 0}
+            mergeNeedsMore={mergeNeedsMore}
+          />
+        )}
       </div>
     </div>
   );

@@ -47,7 +47,7 @@ export default function HomePage() {
     }
   }, []);
 
-  // Editor mode: show the full PDF editor
+  // Editor mode: show the full PDF editor with inline viewer
   if (editorMode) {
     return (
       <div className="h-screen flex flex-col">

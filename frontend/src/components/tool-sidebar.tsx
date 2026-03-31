@@ -92,13 +92,16 @@ const toolGroups: ToolGroup[] = [
   },
 ];
 
+export { toolGroups };
+
 interface ToolSidebarProps {
   selectedTool: OperationType | null;
   onSelectTool: (tool: OperationType) => void;
   className?: string;
+  compact?: boolean;
 }
 
-export function ToolSidebar({ selectedTool, onSelectTool, className }: ToolSidebarProps) {
+export function ToolSidebar({ selectedTool, onSelectTool, className, compact = false }: ToolSidebarProps) {
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(
     new Set(toolGroups.map((g) => g.label))
   );
@@ -114,6 +117,54 @@ export function ToolSidebar({ selectedTool, onSelectTool, className }: ToolSideb
       return next;
     });
   };
+
+  if (compact) {
+    return (
+      <div className={cn('flex flex-col', className)}>
+        <div className="overflow-y-auto flex-1 py-1.5">
+          {toolGroups.map((group) => (
+            <div key={group.label} className="mb-1">
+              <div className="px-2 py-1">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center block">
+                  {group.label}
+                </span>
+              </div>
+              <div className="space-y-0.5 px-1">
+                {group.tools.map((tool) => {
+                  const isSelected = selectedTool === tool.value;
+                  const Icon = tool.icon;
+                  return (
+                    <div key={tool.value} className="relative group/tooltip">
+                      <button
+                        type="button"
+                        onClick={() => onSelectTool(tool.value)}
+                        className={cn(
+                          'flex items-center justify-center w-full rounded-md p-2 transition-all duration-150',
+                          'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          isSelected
+                            ? 'bg-primary/10 text-primary shadow-sm border border-primary/20'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                        title={operationLabel(tool.value)}
+                      >
+                        <Icon className={cn('h-4 w-4', isSelected ? 'text-primary' : '')} />
+                      </button>
+                      {/* Tooltip */}
+                      <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 hidden group-hover/tooltip:block pointer-events-none">
+                        <div className="bg-popover text-popover-foreground text-xs font-medium px-2.5 py-1.5 rounded-md shadow-md border whitespace-nowrap">
+                          {operationLabel(tool.value)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex flex-col', className)}>

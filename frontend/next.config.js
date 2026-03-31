@@ -10,6 +10,11 @@ const nextConfig = {
       bodySizeLimit: '50mb',
     },
   },
+  webpack: (config) => {
+    // pdfjs-dist uses 'canvas' which is Node-only; tell webpack to ignore it in the browser bundle
+    config.resolve.alias.canvas = false;
+    return config;
+  },
   async rewrites() {
     return [
       { source: '/auth/:path*', destination: 'http://localhost:9090/auth/:path*' },
