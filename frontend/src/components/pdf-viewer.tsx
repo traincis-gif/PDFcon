@@ -57,7 +57,8 @@ export function PdfViewer({
     async function loadPdfJs() {
       if (!pdfjsLoaded) {
         const lib = await import('pdfjs-dist');
-        lib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.1.392/pdf.worker.min.mjs`;
+        const pdfjsVersion = lib.version;
+        lib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.mjs`;
         pdfjsLib = lib;
         pdfjsLoaded = true;
       }
