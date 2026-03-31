@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useRef } from 'react';
+import { MapPin, Upload } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export interface SignOptions {
   signatureImageBase64: string;
@@ -25,9 +27,11 @@ export const defaultSignOptions: SignOptions = {
 interface SignOptionsFormProps {
   value: SignOptions;
   onChange: (value: SignOptions) => void;
+  /** Whether placement has been set via viewer click */
+  hasPlacement?: boolean;
 }
 
-export function SignOptionsForm({ value, onChange }: SignOptionsFormProps) {
+export function SignOptionsForm({ value, onChange, hasPlacement }: SignOptionsFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const update = (patch: Partial<SignOptions>) => {
@@ -55,10 +59,11 @@ export function SignOptionsForm({ value, onChange }: SignOptionsFormProps) {
       <div>
         <h3 className="text-sm font-semibold mb-0.5">Signature Options</h3>
         <p className="text-xs text-muted-foreground">
-          Upload a signature image and choose where to place it
+          Upload your signature image, then click on the document to place it
         </p>
       </div>
 
+      {/* Signature upload */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium leading-none">
           Signature Image <span className="text-destructive">*</span>
@@ -67,8 +72,9 @@ export function SignOptionsForm({ value, onChange }: SignOptionsFormProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-md border border-input bg-background px-4 py-2 text-sm hover:bg-muted/40 transition-colors"
+            className="rounded-md border border-input bg-background px-4 py-2 text-sm hover:bg-muted/40 transition-colors flex items-center gap-2"
           >
+            <Upload className="h-3.5 w-3.5" />
             {value.signatureFileName || 'Choose Image'}
           </button>
           {value.signatureFileName && (
@@ -87,57 +93,64 @@ export function SignOptionsForm({ value, onChange }: SignOptionsFormProps) {
         </p>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium leading-none">Page</label>
-          <input
-            type="number"
-            min={1}
-            value={value.page}
-            onChange={(e) => update({ page: Math.max(1, Number(e.target.value)) })}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      {/* Signature preview thumbnail */}
+      {value.signatureImageBase64 && (
+        <div className="rounded-md border bg-muted/20 p-3 flex items-center gap-3">
+          <img
+            src={`data:image/png;base64,${value.signatureImageBase64}`}
+            alt="Signature preview"
+            className="h-10 max-w-[120px] object-contain border rounded bg-white p-1"
           />
+          <span className="text-xs text-muted-foreground">Signature loaded</span>
         </div>
+      )}
+
+      {/* Size controls */}
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium leading-none">X</label>
+          <label className="text-sm font-medium leading-none">Width (pts)</label>
           <input
             type="number"
-            min={0}
-            value={value.x}
-            onChange={(e) => update({ x: Math.max(0, Number(e.target.value)) })}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium leading-none">Y</label>
-          <input
-            type="number"
-            min={0}
-            value={value.y}
-            onChange={(e) => update({ y: Math.max(0, Number(e.target.value)) })}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium leading-none">Width</label>
-          <input
-            type="number"
-            min={1}
+            min={20}
+            max={600}
             value={value.width}
-            onChange={(e) => update({ width: Math.max(1, Number(e.target.value)) })}
+            onChange={(e) => update({ width: Math.max(20, Number(e.target.value)) })}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium leading-none">Height</label>
+          <label className="text-sm font-medium leading-none">Height (pts)</label>
           <input
             type="number"
-            min={1}
+            min={10}
+            max={400}
             value={value.height}
-            onChange={(e) => update({ height: Math.max(1, Number(e.target.value)) })}
+            onChange={(e) => update({ height: Math.max(10, Number(e.target.value)) })}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
         </div>
+      </div>
+
+      {/* Placement info / instruction */}
+      <div className={cn(
+        'rounded-md border p-3 flex items-center gap-2',
+        hasPlacement
+          ? 'border-primary/30 bg-primary/5'
+          : 'border-dashed border-border bg-muted/30'
+      )}>
+        <MapPin className={cn('h-4 w-4 shrink-0', hasPlacement ? 'text-primary' : 'text-muted-foreground')} />
+        {hasPlacement ? (
+          <span className="text-sm">
+            <span className="font-medium">Page {value.page}</span>, position ({Math.round(value.x)}, {Math.round(value.y)})
+            <span className="text-xs text-muted-foreground ml-2">Click again to reposition</span>
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            {value.signatureImageBase64
+              ? 'Click on the document to place your signature'
+              : 'Upload a signature image first, then click on the document to place it'}
+          </span>
+        )}
       </div>
     </div>
   );

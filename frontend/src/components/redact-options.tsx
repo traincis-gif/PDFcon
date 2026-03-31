@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Trash2, MousePointerSquare } from 'lucide-react';
 
 export interface RedactRegion {
   page: number;
@@ -16,7 +16,7 @@ export interface RedactOptions {
 }
 
 export const defaultRedactOptions: RedactOptions = {
-  regions: [{ page: 1, x: 0, y: 0, width: 100, height: 20 }],
+  regions: [],
 };
 
 interface RedactOptionsFormProps {
@@ -25,22 +25,7 @@ interface RedactOptionsFormProps {
 }
 
 export function RedactOptionsForm({ value, onChange }: RedactOptionsFormProps) {
-  const updateRegion = (index: number, patch: Partial<RedactRegion>) => {
-    const newRegions = value.regions.map((r, i) =>
-      i === index ? { ...r, ...patch } : r
-    );
-    onChange({ ...value, regions: newRegions });
-  };
-
-  const addRegion = () => {
-    onChange({
-      ...value,
-      regions: [...value.regions, { page: 1, x: 0, y: 0, width: 100, height: 20 }],
-    });
-  };
-
   const removeRegion = (index: number) => {
-    if (value.regions.length <= 1) return;
     onChange({
       ...value,
       regions: value.regions.filter((_, i) => i !== index),
@@ -52,87 +37,52 @@ export function RedactOptionsForm({ value, onChange }: RedactOptionsFormProps) {
       <div>
         <h3 className="text-sm font-semibold mb-0.5">Redact Options</h3>
         <p className="text-xs text-muted-foreground">
-          Define rectangular regions to black out. Coordinates use PDF coordinate system (0,0 is bottom-left).
+          Draw rectangles on the document to mark areas for redaction
         </p>
       </div>
 
-      {value.regions.map((region, index) => (
-        <div key={index} className="rounded-md border border-border p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Region {index + 1}</span>
-            {value.regions.length > 1 && (
+      {/* Instruction when no regions */}
+      {value.regions.length === 0 && (
+        <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 flex flex-col items-center gap-2 text-center">
+          <MousePointerSquare className="h-6 w-6 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Click and drag on the document to draw redaction rectangles
+          </p>
+          <p className="text-xs text-muted-foreground">
+            On mobile, use a long press and drag
+          </p>
+        </div>
+      )}
+
+      {/* Region list */}
+      {value.regions.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            {value.regions.length} region{value.regions.length !== 1 ? 's' : ''} selected
+          </div>
+          {value.regions.map((region, index) => (
+            <div
+              key={index}
+              className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2"
+            >
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-sm bg-red-500/60" />
+                <span className="text-sm font-medium">Page {region.page}:</span>
+                <span className="text-xs text-muted-foreground">
+                  ({Math.round(region.x)}, {Math.round(region.y)}) - {Math.round(region.width)} x {Math.round(region.height)}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => removeRegion(index)}
-                className="text-destructive hover:text-destructive/80 transition-colors"
+                className="text-destructive hover:text-destructive/80 transition-colors p-1"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
-            )}
-          </div>
-          <div className="grid grid-cols-5 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Page</label>
-              <input
-                type="number"
-                min={1}
-                value={region.page}
-                onChange={(e) => updateRegion(index, { page: Math.max(1, Number(e.target.value)) })}
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">X</label>
-              <input
-                type="number"
-                min={0}
-                value={region.x}
-                onChange={(e) => updateRegion(index, { x: Math.max(0, Number(e.target.value)) })}
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Y</label>
-              <input
-                type="number"
-                min={0}
-                value={region.y}
-                onChange={(e) => updateRegion(index, { y: Math.max(0, Number(e.target.value)) })}
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Width</label>
-              <input
-                type="number"
-                min={1}
-                value={region.width}
-                onChange={(e) => updateRegion(index, { width: Math.max(1, Number(e.target.value)) })}
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Height</label>
-              <input
-                type="number"
-                min={1}
-                value={region.height}
-                onChange={(e) => updateRegion(index, { height: Math.max(1, Number(e.target.value)) })}
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              />
-            </div>
-          </div>
+          ))}
         </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={addRegion}
-        className="flex items-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors w-full justify-center"
-      >
-        <Plus className="h-4 w-4" />
-        Add Region
-      </button>
+      )}
     </div>
   );
 }

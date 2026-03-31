@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { ToolSidebar, ToolBarMobile } from '@/components/tool-sidebar';
 import { FileDropzone } from '@/components/file-dropzone';
 import { PdfViewer, FIT_WIDTH } from '@/components/pdf-viewer';
+import type { InteractionMode, TextMarker, SignatureMarker } from '@/components/pdf-viewer';
 import { ViewerToolbar } from '@/components/viewer-toolbar';
 import { BottomPanel } from '@/components/bottom-panel';
 import {
   buildMetadata,
   validateOptions,
   defaultToolOptionsState,
+  isInteractiveTool,
 } from '@/components/tool-options';
 import type { ToolOptionsState } from '@/components/tool-options';
 import { JobProgress } from '@/components/job-progress';
@@ -126,6 +128,89 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
     setUploadProgress(0);
     setIsUploading(false);
   }, []);
+
+  // Interactive viewer callbacks
+  const handleTextPlacement = useCallback(
+    (page: number, x: number, y: number) => {
+      setToolOptions((prev) => ({
+        ...prev,
+        textOptions: { ...prev.textOptions, page, x, y },
+        textPlacementSet: true,
+      }));
+    },
+    []
+  );
+
+  const handleRedactRectDrawn = useCallback(
+    (page: number, x: number, y: number, width: number, height: number) => {
+      setToolOptions((prev) => ({
+        ...prev,
+        redactOptions: {
+          ...prev.redactOptions,
+          regions: [...prev.redactOptions.regions, { page, x, y, width, height }],
+        },
+      }));
+    },
+    []
+  );
+
+  const handleSignPlacement = useCallback(
+    (page: number, x: number, y: number) => {
+      setToolOptions((prev) => ({
+        ...prev,
+        signOptions: { ...prev.signOptions, page, x, y },
+        signPlacementSet: true,
+      }));
+    },
+    []
+  );
+
+  // Build the interaction mode for the viewer based on selected tool
+  const interactionMode: InteractionMode = useMemo(() => {
+    if (!selectedTool || !canPreviewPdf || jobId) return { type: 'none' };
+
+    switch (selectedTool) {
+      case 'add_text':
+        return { type: 'click', onPageClick: handleTextPlacement };
+      case 'redact':
+        return { type: 'draw-rect', onRectDrawn: handleRedactRectDrawn };
+      case 'sign':
+        return { type: 'click', onPageClick: handleSignPlacement };
+      default:
+        return { type: 'none' };
+    }
+  }, [selectedTool, canPreviewPdf, jobId, handleTextPlacement, handleRedactRectDrawn, handleSignPlacement]);
+
+  // Build overlay markers for the viewer
+  const textMarkers: TextMarker[] = useMemo(() => {
+    if (selectedTool !== 'add_text' || !toolOptions.textPlacementSet) return [];
+    const opts = toolOptions.textOptions;
+    if (!opts.text.trim()) return [];
+    return [{
+      page: opts.page,
+      x: opts.x,
+      y: opts.y,
+      text: opts.text,
+      color: opts.color,
+    }];
+  }, [selectedTool, toolOptions.textOptions, toolOptions.textPlacementSet]);
+
+  const signatureMarker: SignatureMarker | null = useMemo(() => {
+    if (selectedTool !== 'sign' || !toolOptions.signPlacementSet) return null;
+    const opts = toolOptions.signOptions;
+    return {
+      page: opts.page,
+      x: opts.x,
+      y: opts.y,
+      width: opts.width,
+      height: opts.height,
+    };
+  }, [selectedTool, toolOptions.signOptions, toolOptions.signPlacementSet]);
+
+  const redactRegions = useMemo(() => {
+    if (selectedTool !== 'redact') return [];
+    return toolOptions.redactOptions.regions;
+  }, [selectedTool, toolOptions.redactOptions.regions]);
 
   const canProcess = (() => {
     if (files.length === 0 || !selectedTool || isUploading || jobId) return false;
@@ -257,6 +342,10 @@ export function PdfEditor({ initialFiles }: PdfEditorProps) {
                 onPageCountChange={setTotalPages}
                 onCurrentPageChange={setCurrentPage}
                 className="h-full"
+                interactionMode={interactionMode}
+                textMarkers={textMarkers}
+                redactRegions={redactRegions}
+                signatureMarker={signatureMarker}
               />
 
               {/* Multi-file indicator for merge */}

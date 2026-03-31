@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import type { RedactRegion } from '@/components/redact-options';
 
 // We dynamically import pdfjs-dist so Next.js SSR doesn't choke on it
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
@@ -20,6 +21,27 @@ interface PageInfo {
   rendering: boolean;
 }
 
+export type InteractionMode =
+  | { type: 'none' }
+  | { type: 'click'; onPageClick: (page: number, x: number, y: number) => void }
+  | { type: 'draw-rect'; onRectDrawn: (page: number, x: number, y: number, width: number, height: number) => void };
+
+export interface TextMarker {
+  page: number;
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+}
+
+export interface SignatureMarker {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface PdfViewerProps {
   file: File;
   className?: string;
@@ -27,6 +49,10 @@ interface PdfViewerProps {
   onCurrentPageChange?: (page: number) => void;
   zoom: number; // -1 = fit width, otherwise scale factor
   onZoomChange?: (zoom: number) => void;
+  interactionMode?: InteractionMode;
+  textMarkers?: TextMarker[];
+  redactRegions?: RedactRegion[];
+  signatureMarker?: SignatureMarker | null;
 }
 
 export { ZOOM_LEVELS, FIT_WIDTH };
@@ -37,6 +63,10 @@ export function PdfViewer({
   onPageCountChange,
   onCurrentPageChange,
   zoom,
+  interactionMode = { type: 'none' },
+  textMarkers = [],
+  redactRegions = [],
+  signatureMarker = null,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
@@ -50,6 +80,19 @@ export function PdfViewer({
   const renderedAtScale = useRef<Map<number, number>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pageElementsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Drawing state for draw-rect mode
+  const [drawState, setDrawState] = useState<{
+    active: boolean;
+    page: number;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+
+  // Long-press state for mobile
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load pdfjs-dist dynamically
   useEffect(() => {
@@ -316,6 +359,135 @@ export function PdfViewer({
     []
   );
 
+  // Convert mouse event coordinates to PDF coordinate space
+  const convertToPdfCoords = useCallback(
+    (event: React.MouseEvent | React.Touch, overlayEl: HTMLElement, pageIndex: number) => {
+      const rect = overlayEl.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+      const scale = getEffectiveScale(pageIndex);
+      const pageHeight = pageInfos[pageIndex]?.height || 0;
+
+      const pdfX = canvasX / scale;
+      const pdfY = pageHeight - (canvasY / scale);
+
+      return { pdfX, pdfY, canvasX, canvasY };
+    },
+    [getEffectiveScale, pageInfos]
+  );
+
+  // Handle overlay click for click mode
+  const handleOverlayClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>, pageNum: number) => {
+      if (interactionMode.type !== 'click') return;
+      const pageIndex = pageNum - 1;
+      const { pdfX, pdfY } = convertToPdfCoords(event, event.currentTarget, pageIndex);
+      interactionMode.onPageClick(pageNum, Math.round(pdfX * 100) / 100, Math.round(pdfY * 100) / 100);
+    },
+    [interactionMode, convertToPdfCoords]
+  );
+
+  // Handle touch for mobile long-press
+  const handleTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>, pageNum: number) => {
+      if (interactionMode.type === 'none') return;
+      const touch = event.touches[0];
+      const target = event.currentTarget;
+      const pageIndex = pageNum - 1;
+
+      longPressTimer.current = setTimeout(() => {
+        if (interactionMode.type === 'click') {
+          const rect = target.getBoundingClientRect();
+          const canvasX = touch.clientX - rect.left;
+          const canvasY = touch.clientY - rect.top;
+          const scale = getEffectiveScale(pageIndex);
+          const pageHeight = pageInfos[pageIndex]?.height || 0;
+          const pdfX = canvasX / scale;
+          const pdfY = pageHeight - (canvasY / scale);
+          interactionMode.onPageClick(pageNum, Math.round(pdfX * 100) / 100, Math.round(pdfY * 100) / 100);
+        }
+        longPressTimer.current = null;
+      }, 500);
+    },
+    [interactionMode, getEffectiveScale, pageInfos]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  // Handle draw-rect mode mouse events
+  const handleOverlayMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>, pageNum: number) => {
+      if (interactionMode.type !== 'draw-rect') return;
+      event.preventDefault();
+      const pageIndex = pageNum - 1;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+
+      setDrawState({
+        active: true,
+        page: pageNum,
+        startX: canvasX,
+        startY: canvasY,
+        currentX: canvasX,
+        currentY: canvasY,
+      });
+    },
+    [interactionMode]
+  );
+
+  const handleOverlayMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!drawState?.active) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+      setDrawState((prev) => prev ? { ...prev, currentX: canvasX, currentY: canvasY } : null);
+    },
+    [drawState?.active]
+  );
+
+  const handleOverlayMouseUp = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!drawState?.active || interactionMode.type !== 'draw-rect') return;
+      const pageIndex = drawState.page - 1;
+      const scale = getEffectiveScale(pageIndex);
+      const pageHeight = pageInfos[pageIndex]?.height || 0;
+
+      const x1 = Math.min(drawState.startX, drawState.currentX) / scale;
+      const y1 = Math.min(drawState.startY, drawState.currentY) / scale;
+      const x2 = Math.max(drawState.startX, drawState.currentX) / scale;
+      const y2 = Math.max(drawState.startY, drawState.currentY) / scale;
+
+      const width = x2 - x1;
+      const height = y2 - y1;
+
+      // Only register if the rectangle is big enough (at least 5 PDF points)
+      if (width > 5 && height > 5) {
+        // Convert to PDF coords (origin bottom-left)
+        const pdfX = x1;
+        const pdfY = pageHeight - y2;
+        interactionMode.onRectDrawn(
+          drawState.page,
+          Math.round(pdfX * 100) / 100,
+          Math.round(pdfY * 100) / 100,
+          Math.round(width * 100) / 100,
+          Math.round(height * 100) / 100
+        );
+      }
+
+      setDrawState(null);
+    },
+    [drawState, interactionMode, getEffectiveScale, pageInfos]
+  );
+
+  const isInteractive = interactionMode.type !== 'none';
+
   if (loading) {
     return (
       <div className={cn('flex items-center justify-center h-full', className)}>
@@ -366,6 +538,15 @@ export function PdfViewer({
           const displayWidth = info ? info.width * scale : 600;
           const displayHeight = info ? info.height * scale : 800;
 
+          // Get markers/overlays for this page
+          const pageTextMarkers = textMarkers.filter((m) => m.page === pageNum);
+          const pageRedactRegions = redactRegions.filter((r) => r.page === pageNum);
+          const pageSignature = signatureMarker && signatureMarker.page === pageNum ? signatureMarker : null;
+          const pageHeight = info?.height || 0;
+
+          // Current drawing rect for this page (in canvas pixels)
+          const isDrawingOnThisPage = drawState?.active && drawState.page === pageNum;
+
           return (
             <div
               key={pageNum}
@@ -382,13 +563,120 @@ export function PdfViewer({
                 ref={setCanvasRef(pageNum)}
                 className="block"
               />
+
+              {/* Interactive overlay layer */}
+              {isInteractive && (
+                <div
+                  className="absolute inset-0 z-10"
+                  style={{ cursor: 'crosshair' }}
+                  onClick={(e) => handleOverlayClick(e, pageNum)}
+                  onMouseDown={(e) => handleOverlayMouseDown(e, pageNum)}
+                  onMouseMove={handleOverlayMouseMove}
+                  onMouseUp={handleOverlayMouseUp}
+                  onMouseLeave={(e) => {
+                    if (drawState?.active) handleOverlayMouseUp(e);
+                  }}
+                  onTouchStart={(e) => handleTouchStart(e, pageNum)}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={handleTouchEnd}
+                />
+              )}
+
+              {/* Overlay SVG for markers and rectangles */}
+              <svg
+                className="absolute inset-0 z-[5] pointer-events-none"
+                width={displayWidth}
+                height={displayHeight}
+                viewBox={`0 0 ${displayWidth} ${displayHeight}`}
+              >
+                {/* Drawing rectangle preview */}
+                {isDrawingOnThisPage && drawState && (
+                  <rect
+                    x={Math.min(drawState.startX, drawState.currentX)}
+                    y={Math.min(drawState.startY, drawState.currentY)}
+                    width={Math.abs(drawState.currentX - drawState.startX)}
+                    height={Math.abs(drawState.currentY - drawState.startY)}
+                    fill="rgba(220, 38, 38, 0.2)"
+                    stroke="#DC2626"
+                    strokeWidth="2"
+                    strokeDasharray="6 3"
+                  />
+                )}
+
+                {/* Redact region overlays */}
+                {pageRedactRegions.map((region, idx) => {
+                  // Convert PDF coords back to canvas coords
+                  const rx = region.x * scale;
+                  const ry = (pageHeight - region.y - region.height) * scale;
+                  const rw = region.width * scale;
+                  const rh = region.height * scale;
+                  return (
+                    <rect
+                      key={`redact-${idx}`}
+                      x={rx}
+                      y={ry}
+                      width={rw}
+                      height={rh}
+                      fill="rgba(220, 38, 38, 0.25)"
+                      stroke="#DC2626"
+                      strokeWidth="1.5"
+                    />
+                  );
+                })}
+
+                {/* Text markers */}
+                {pageTextMarkers.map((marker, idx) => {
+                  const mx = marker.x * scale;
+                  const my = (pageHeight - marker.y) * scale;
+                  return (
+                    <g key={`text-${idx}`}>
+                      <circle cx={mx} cy={my} r={6} fill="#2563EB" />
+                      <circle cx={mx} cy={my} r={3} fill="white" />
+                      <rect
+                        x={mx + 10}
+                        y={my - 12}
+                        width={Math.min(marker.text.length * 7 + 12, 200)}
+                        height={24}
+                        rx={4}
+                        fill="#2563EB"
+                        opacity={0.9}
+                      />
+                      <text
+                        x={mx + 16}
+                        y={my + 3}
+                        fill="white"
+                        fontSize="11"
+                        fontFamily="system-ui, sans-serif"
+                      >
+                        {marker.text.length > 25 ? marker.text.slice(0, 25) + '...' : marker.text}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Signature marker */}
+                {pageSignature && (
+                  <rect
+                    x={pageSignature.x * scale}
+                    y={(pageHeight - pageSignature.y - pageSignature.height) * scale}
+                    width={pageSignature.width * scale}
+                    height={pageSignature.height * scale}
+                    fill="rgba(37, 99, 235, 0.08)"
+                    stroke="#2563EB"
+                    strokeWidth="2"
+                    strokeDasharray="8 4"
+                    rx={4}
+                  />
+                )}
+              </svg>
+
               {/* Page number badge */}
-              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full pointer-events-none">
+              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full pointer-events-none z-20">
                 {pageNum}
               </div>
               {/* Loading skeleton overlay */}
               {!info?.rendered && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+                <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">

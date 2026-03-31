@@ -112,6 +112,10 @@ export interface ToolOptionsState {
   pageNumbersOptions: PageNumbersOptions;
   redactOptions: RedactOptions;
   signOptions: SignOptions;
+  /** Tracks whether the user has clicked on the viewer to set placement for text */
+  textPlacementSet: boolean;
+  /** Tracks whether the user has clicked on the viewer to set placement for signature */
+  signPlacementSet: boolean;
 }
 
 export const defaultToolOptionsState: ToolOptionsState = {
@@ -123,6 +127,8 @@ export const defaultToolOptionsState: ToolOptionsState = {
   pageNumbersOptions: defaultPageNumbersOptions,
   redactOptions: defaultRedactOptions,
   signOptions: defaultSignOptions,
+  textPlacementSet: false,
+  signPlacementSet: false,
 };
 
 interface ToolOptionsProps {
@@ -140,6 +146,7 @@ export function ToolOptions({ tool, options, onOptionsChange }: ToolOptionsProps
           <TextOptionsForm
             value={options.textOptions}
             onChange={(textOptions) => onOptionsChange({ ...options, textOptions })}
+            hasPlacement={options.textPlacementSet}
           />
         </div>
       );
@@ -203,6 +210,7 @@ export function ToolOptions({ tool, options, onOptionsChange }: ToolOptionsProps
           <SignOptionsForm
             value={options.signOptions}
             onChange={(signOptions) => onOptionsChange({ ...options, signOptions })}
+            hasPlacement={options.signPlacementSet}
           />
         </div>
       );
@@ -301,7 +309,7 @@ export function validateOptions(
 ): boolean {
   switch (tool) {
     case 'add_text':
-      return !!options.textOptions.text.trim();
+      return !!options.textOptions.text.trim() && options.textPlacementSet;
     case 'watermark':
       return !!options.watermarkOptions.text.trim();
     case 'encrypt':
@@ -309,10 +317,29 @@ export function validateOptions(
     case 'reorder':
       return !!options.reorderOptions.pageOrder.trim();
     case 'sign':
-      return !!options.signOptions.signatureImageBase64;
+      return !!options.signOptions.signatureImageBase64 && options.signPlacementSet;
     case 'redact':
       return options.redactOptions.regions.length > 0;
     default:
       return true;
+  }
+}
+
+/** Tools that need interactive viewer modes */
+export type InteractiveTool = 'add_text' | 'redact' | 'sign';
+
+export function isInteractiveTool(tool: OperationType): tool is InteractiveTool {
+  return tool === 'add_text' || tool === 'redact' || tool === 'sign';
+}
+
+/** Get instruction text for interactive tools */
+export function getInteractionInstruction(tool: InteractiveTool): string {
+  switch (tool) {
+    case 'add_text':
+      return 'Click on the document to place text';
+    case 'redact':
+      return 'Draw rectangles on the document to mark areas for redaction';
+    case 'sign':
+      return 'Click on the document to place your signature';
   }
 }
