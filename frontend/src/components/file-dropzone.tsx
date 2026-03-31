@@ -145,10 +145,10 @@ export function FileDropzone({
           />
         </div>
         <h2 className="text-2xl font-bold mb-2">
-          {isDragOver ? 'Drop your file here' : 'Drop your PDF here'}
+          {isDragOver ? 'Drop your file here' : 'Drop any file here to start'}
         </h2>
         <p className="text-muted-foreground text-center max-w-sm">
-          {hint || 'Drag and drop a PDF, Word, Excel, PowerPoint, HTML, or image file to get started'}
+          {hint || 'PDF, Word, Excel, PowerPoint, or images'}
         </p>
         <p className="text-xs text-muted-foreground mt-3">
           or click to browse (up to {maxSizeMB}MB)

@@ -105,8 +105,8 @@ export const transformHandlers: Record<string, OperationHandler> = {
 
   ADD_TEXT: async (jobId, metadata, ctx) => {
     const inputKey = requireFileKey(metadata, "add text");
-    if (!metadata.text) {
-      throw new Error("Text is required for add text");
+    if (!metadata.text && (!metadata.placements || metadata.placements.length === 0)) {
+      throw new Error("Either 'text' or 'placements' is required for add text");
     }
     const result = await addTextToPdf({
       inputKey,
@@ -117,6 +117,7 @@ export const transformHandlers: Record<string, OperationHandler> = {
       y: metadata.y ?? 0,
       fontSize: metadata.fontSize,
       color: metadata.color,
+      placements: metadata.placements,
     });
     await ctx.updateStatus(jobId, "DONE", {
       outputUrl: result.outputKey,

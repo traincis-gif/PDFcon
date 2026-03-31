@@ -23,7 +23,7 @@ interface PageInfo {
 
 export type InteractionMode =
   | { type: 'none' }
-  | { type: 'click'; onPageClick: (page: number, x: number, y: number) => void }
+  | { type: 'click'; onPageClick: (page: number, x: number, y: number, screenX: number, screenY: number) => void }
   | { type: 'draw-rect'; onRectDrawn: (page: number, x: number, y: number, width: number, height: number) => void };
 
 export interface TextMarker {
@@ -382,7 +382,13 @@ export function PdfViewer({
       if (interactionMode.type !== 'click') return;
       const pageIndex = pageNum - 1;
       const { pdfX, pdfY } = convertToPdfCoords(event, event.currentTarget, pageIndex);
-      interactionMode.onPageClick(pageNum, Math.round(pdfX * 100) / 100, Math.round(pdfY * 100) / 100);
+      interactionMode.onPageClick(
+        pageNum,
+        Math.round(pdfX * 100) / 100,
+        Math.round(pdfY * 100) / 100,
+        event.clientX,
+        event.clientY
+      );
     },
     [interactionMode, convertToPdfCoords]
   );
@@ -404,7 +410,7 @@ export function PdfViewer({
           const pageHeight = pageInfos[pageIndex]?.height || 0;
           const pdfX = canvasX / scale;
           const pdfY = pageHeight - (canvasY / scale);
-          interactionMode.onPageClick(pageNum, Math.round(pdfX * 100) / 100, Math.round(pdfY * 100) / 100);
+          interactionMode.onPageClick(pageNum, Math.round(pdfX * 100) / 100, Math.round(pdfY * 100) / 100, touch.clientX, touch.clientY);
         }
         longPressTimer.current = null;
       }, 500);
