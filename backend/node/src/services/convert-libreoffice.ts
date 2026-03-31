@@ -31,22 +31,28 @@ const SUPPORTED_CONVERSIONS: Record<string, string[]> = {
  * LibreOffice --convert-to accepts short format names for most cases,
  * but some need explicit filter specification.
  */
-function getLibreOfficeFormat(outputFormat: string): string {
+function getLibreOfficeFormat(outputFormat: string, inputFormat?: string): string {
+  // When converting FROM PDF, LibreOffice needs explicit export filter names
+  if (inputFormat === "pdf") {
+    switch (outputFormat) {
+      case "docx":
+        return 'docx:"MS Word 2007 XML"';
+      case "xlsx":
+        return 'xlsx:"Calc MS Excel 2007 XML"';
+      case "pptx":
+        return 'pptx:"Impress MS PowerPoint 2007 XML"';
+      case "html":
+        return "html";
+      case "txt":
+        return "txt";
+      default:
+        return outputFormat;
+    }
+  }
+  // For non-PDF input, simple format names work
   switch (outputFormat) {
-    case "docx":
-      return "docx";
-    case "xlsx":
-      return "xlsx";
-    case "pptx":
-      return "pptx";
     case "pdf":
       return "pdf";
-    case "html":
-      return "html";
-    case "txt":
-      return "txt";
-    case "rtf":
-      return "rtf";
     default:
       return outputFormat;
   }
@@ -122,7 +128,7 @@ export async function convertWithLibreOffice(
     // Write input buffer to temp file
     await writeFile(inputFilePath, inputBuffer);
 
-    const loFormat = getLibreOfficeFormat(normalizedOutput);
+    const loFormat = getLibreOfficeFormat(normalizedOutput, normalizedInput);
 
     // Run LibreOffice headless conversion
     const args = [
@@ -134,11 +140,6 @@ export async function convertWithLibreOffice(
       "--nofirststartwizard",
       `-env:UserInstallation=file://${homeDir}`,
     ];
-
-    // PDF input requires the draw_pdf_import filter
-    if (normalizedInput === "pdf") {
-      args.push("--infilter=draw_pdf_import");
-    }
 
     args.push(
       "--convert-to",
@@ -160,10 +161,11 @@ export async function convertWithLibreOffice(
       });
 
       if (stderr) {
-        logger.warn({ stderr }, "LibreOffice stderr output");
+        logger.warn({ stderr: stderr.substring(0, 500) }, "LibreOffice stderr");
       }
-
-      logger.debug({ stdout }, "LibreOffice stdout output");
+      if (stdout) {
+        logger.info({ stdout: stdout.substring(0, 500) }, "LibreOffice stdout");
+      }
     } catch (execError: unknown) {
       const err = execError as Error & { stderr?: string; code?: number };
       logger.error(
