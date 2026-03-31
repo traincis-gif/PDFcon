@@ -112,10 +112,11 @@ export async function convertWithLibreOffice(
     "Starting LibreOffice conversion"
   );
 
-  // Create a temporary directory for this conversion
-  const tmpDir = await mkdtemp(path.join(tmpdir(), "lo-convert-"));
+  // Create separate directories for work and LibreOffice profile
+  const workDir = await mkdtemp(path.join(tmpdir(), "lo-convert-"));
+  const homeDir = await mkdtemp(path.join(tmpdir(), "lo-home-"));
   const inputFileName = `input.${normalizedInput}`;
-  const inputFilePath = path.join(tmpDir, inputFileName);
+  const inputFilePath = path.join(workDir, inputFileName);
 
   try {
     // Write input buffer to temp file
@@ -129,10 +130,13 @@ export async function convertWithLibreOffice(
       "--norestore",
       "--nolockcheck",
       "--nologo",
+      "--nodefault",
+      "--nofirststartwizard",
+      `-env:UserInstallation=file://${homeDir}`,
       "--convert-to",
       loFormat,
       "--outdir",
-      tmpDir,
+      workDir,
       inputFilePath,
     ];
 
@@ -143,7 +147,7 @@ export async function convertWithLibreOffice(
         timeout,
         env: {
           ...process.env,
-          HOME: tmpDir, // Avoid LibreOffice profile locking issues
+          HOME: homeDir,
         },
       });
 
@@ -164,7 +168,7 @@ export async function convertWithLibreOffice(
     // Find the output file - LibreOffice names it based on the input filename
     const expectedExt = getOutputExtension(normalizedOutput);
     const expectedOutputName = `input.${expectedExt}`;
-    const expectedOutputPath = path.join(tmpDir, expectedOutputName);
+    const expectedOutputPath = path.join(workDir, expectedOutputName);
 
     // Try the expected path first, otherwise scan the directory
     let outputPath: string;
@@ -172,20 +176,29 @@ export async function convertWithLibreOffice(
       await readFile(expectedOutputPath);
       outputPath = expectedOutputPath;
     } catch {
-      // Scan directory for the output file (excluding the input file)
-      const files = await readdir(tmpDir);
-      const outputFile = files.find(
-        (f) => f !== inputFileName && f.startsWith("input.")
-      );
+      // Scan directory for output file (exclude input, dirs, dotfiles)
+      const { stat } = await import("node:fs/promises");
+      const files = await readdir(workDir);
+      const outputFile = files.find((f) => {
+        if (f === inputFileName) return false;
+        if (f.startsWith(".")) return false; // Skip .cache, .config, etc.
+        // Check it's a file, not a directory
+        try {
+          const s = require("node:fs").statSync(path.join(workDir, f));
+          return s.isFile();
+        } catch {
+          return false;
+        }
+      });
 
       if (!outputFile) {
         const allFiles = files.join(", ");
         throw new Error(
-          `LibreOffice conversion produced no output file. Files in tmpdir: ${allFiles}`
+          `LibreOffice conversion produced no output file. Files in workdir: ${allFiles}`
         );
       }
 
-      outputPath = path.join(tmpDir, outputFile);
+      outputPath = path.join(workDir, outputFile);
     }
 
     // Read the output file
@@ -203,11 +216,13 @@ export async function convertWithLibreOffice(
 
     return outputBuffer;
   } finally {
-    // Clean up temp directory
-    try {
-      await rm(tmpDir, { recursive: true, force: true });
-    } catch (cleanupError) {
-      logger.warn({ tmpDir, error: cleanupError }, "Failed to clean up temp directory");
+    // Clean up temp directories
+    for (const dir of [workDir, homeDir]) {
+      try {
+        await rm(dir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        logger.warn({ dir, error: cleanupError }, "Failed to clean up temp directory");
+      }
     }
   }
 }
