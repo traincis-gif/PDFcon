@@ -1,3 +1,4 @@
+// @ts-ignore — no type declarations for archiver
 import archiver from "archiver";
 import { logger } from "../lib/logger";
 
