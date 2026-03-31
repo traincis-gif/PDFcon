@@ -164,19 +164,29 @@ export function PdfViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
-  // Track container width for fit-width mode
+  // Track container width for fit-width mode (with ResizeObserver fallback)
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-    resizeObserver.observe(container);
-    setContainerWidth(container.clientWidth);
-    return () => resizeObserver.disconnect();
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setContainerWidth(entry.contentRect.width);
+        }
+      });
+      resizeObserver.observe(container);
+      setContainerWidth(container.clientWidth);
+      return () => resizeObserver.disconnect();
+    } else {
+      // Fallback: listen for window resize events
+      const handleResize = () => {
+        if (container) setContainerWidth(container.clientWidth);
+      };
+      setContainerWidth(container.clientWidth);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
   }, []);
 
   // Compute effective scale
@@ -222,7 +232,8 @@ export function PdfViewer({
         canvas.style.width = `${displayViewport.width}px`;
         canvas.style.height = `${displayViewport.height}px`;
 
-        const ctx = canvas.getContext('2d');
+        // Safari: use willReadFrequently hint for better canvas performance
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) {
           renderingPages.current.delete(pageNum);
           return;
@@ -250,44 +261,51 @@ export function PdfViewer({
     [pdfDoc, getEffectiveScale]
   );
 
-  // Intersection Observer for lazy loading
+  // Intersection Observer for lazy loading (with fallback)
   useEffect(() => {
     if (!pdfDoc || pageCount === 0) return;
 
     observerRef.current?.disconnect();
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const pageNum = parseInt(
-              (entry.target as HTMLElement).dataset.page || '0',
-              10
-            );
-            if (pageNum > 0) {
-              renderPage(pageNum);
-              // Pre-render adjacent pages
-              if (pageNum > 1) renderPage(pageNum - 1);
-              if (pageNum < pageCount) renderPage(pageNum + 1);
+    if (typeof IntersectionObserver !== 'undefined') {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const pageNum = parseInt(
+                (entry.target as HTMLElement).dataset.page || '0',
+                10
+              );
+              if (pageNum > 0) {
+                renderPage(pageNum);
+                // Pre-render adjacent pages
+                if (pageNum > 1) renderPage(pageNum - 1);
+                if (pageNum < pageCount) renderPage(pageNum + 1);
+              }
             }
-          }
-        });
-      },
-      {
-        root: containerRef.current,
-        rootMargin: '200px 0px',
-        threshold: 0.01,
+          });
+        },
+        {
+          root: containerRef.current,
+          rootMargin: '200px 0px',
+          threshold: 0.01,
+        }
+      );
+
+      observerRef.current = observer;
+
+      // Observe all page elements
+      pageElementsRef.current.forEach((el) => {
+        observer.observe(el);
+      });
+
+      return () => observer.disconnect();
+    } else {
+      // Fallback: render all pages eagerly when IntersectionObserver is unavailable
+      for (let i = 1; i <= pageCount; i++) {
+        renderPage(i);
       }
-    );
-
-    observerRef.current = observer;
-
-    // Observe all page elements
-    pageElementsRef.current.forEach((el) => {
-      observer.observe(el);
-    });
-
-    return () => observer.disconnect();
+    }
   }, [pdfDoc, pageCount, renderPage]);
 
   // Re-render visible pages when zoom changes
@@ -595,7 +613,7 @@ export function PdfViewer({
               {isInteractive && (
                 <div
                   className="absolute inset-0 z-10"
-                  style={{ cursor: 'crosshair' }}
+                  style={{ cursor: 'crosshair', touchAction: 'none', WebkitTouchCallout: 'none' }}
                   onClick={(e) => handleOverlayClick(e, pageNum)}
                   onMouseDown={(e) => handleOverlayMouseDown(e, pageNum)}
                   onMouseMove={handleOverlayMouseMove}

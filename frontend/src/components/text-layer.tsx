@@ -183,12 +183,10 @@ export function TextLayer({
     };
   }, [file, pageNumber]);
 
-  // Handle clicking on a text line to make it editable
-  const handleLineClick = useCallback(
-    (index: number, e: React.MouseEvent) => {
+  // Activate a text line for editing (shared by click and touch)
+  const activateLine = useCallback(
+    (index: number) => {
       if (!editable) return;
-      e.stopPropagation();
-      e.preventDefault();
 
       setActiveLineIndex(index);
       const line = lines[index];
@@ -199,7 +197,7 @@ export function TextLayer({
         const el = editableRefs.current.get(index);
         if (el) {
           el.focus();
-          // Place cursor at click position
+          // Place cursor at end
           const selection = window.getSelection();
           if (selection && el.firstChild) {
             const range = document.createRange();
@@ -212,6 +210,29 @@ export function TextLayer({
       });
     },
     [editable, lines]
+  );
+
+  // Handle clicking on a text line to make it editable
+  const handleLineClick = useCallback(
+    (index: number, e: React.MouseEvent) => {
+      if (!editable) return;
+      e.stopPropagation();
+      e.preventDefault();
+      activateLine(index);
+    },
+    [editable, activateLine]
+  );
+
+  // Handle touch on a text line for mobile editing
+  const handleLineTouchEnd = useCallback(
+    (index: number, e: React.TouchEvent) => {
+      if (!editable) return;
+      e.stopPropagation();
+      // Prevent the mouse event from also firing
+      e.preventDefault();
+      activateLine(index);
+    },
+    [editable, activateLine]
   );
 
   // Handle blur (finish editing)
@@ -335,6 +356,7 @@ export function TextLayer({
             contentEditable={isActive}
             suppressContentEditableWarning
             onClick={(e) => handleLineClick(index, e)}
+            onTouchEnd={(e) => handleLineTouchEnd(index, e)}
             onBlur={() => handleBlur(index)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             className={[
@@ -365,6 +387,8 @@ export function TextLayer({
               color: isActive ? '#000' : 'transparent',
               // Make the background transparent when not active and not edited
               caretColor: isActive ? '#2563EB' : 'transparent',
+              // Safari contenteditable compatibility
+              WebkitUserModify: isActive ? 'read-write-plaintext-only' : 'read-only',
               wordBreak: 'keep-all',
               overflowWrap: 'normal',
               boxSizing: 'border-box',

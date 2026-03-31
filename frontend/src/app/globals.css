@@ -3,6 +3,64 @@
 @tailwind utilities;
 
 @layer base {
+  /* ---- CSS Reset for cross-browser consistency ---- */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Prevent font-size inflation on mobile */
+  html {
+    -moz-text-size-adjust: none;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+  }
+
+  /* Remove default margin in favour of better control in authored CSS */
+  body, h1, h2, h3, h4, p, figure, blockquote, dl, dd {
+    margin-block-end: 0;
+  }
+
+  /* Balance text wrapping on headings */
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  /* Smooth anchor scrolling */
+  html:focus-within {
+    scroll-behavior: smooth;
+  }
+
+  /* Improve media defaults */
+  img, picture, video, canvas, svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Inherit fonts for inputs and buttons */
+  input, button, textarea, select {
+    font: inherit;
+  }
+
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    html:focus-within {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -62,6 +120,8 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    /* Fix iOS Safari viewport height */
+    min-height: 100dvh;
   }
 
   /* Smooth transitions on theme change */
@@ -73,7 +133,7 @@
     transition-timing-function: ease;
   }
 
-  /* Scrollbar styling */
+  /* ---- Scrollbar styling (Chrome, Edge, Safari) ---- */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -92,15 +152,46 @@
     background: hsl(var(--muted-foreground) / 0.5);
   }
 
-  /* Firefox scrollbar */
+  /* ---- Scrollbar styling (Firefox) ---- */
   * {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
+
+  /* ---- Touch action for mobile ---- */
+  .touch-manipulation {
+    -ms-touch-action: manipulation;
+    touch-action: manipulation;
+  }
+
+  /* ---- iOS Safari viewport fixes ---- */
+  .min-h-screen-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .h-screen-safe {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* ---- Safari contenteditable fix ---- */
+  [contenteditable] {
+    -webkit-user-modify: read-write-plaintext-only;
+    -moz-user-modify: read-write;
+    outline: none;
+  }
+
+  [contenteditable="false"] {
+    -webkit-user-modify: read-only;
+    -moz-user-modify: read-only;
+  }
 }
 
+/* ---- Animations with vendor prefixes ---- */
 @layer utilities {
   .animate-in {
+    -webkit-animation: animateIn 0.2s ease-out;
     animation: animateIn 0.2s ease-out;
   }
   .fade-in-0 {
@@ -111,6 +202,27 @@
   }
   .slide-in-from-bottom-5 {
     --tw-enter-translate-y: 1.25rem;
+  }
+}
+
+@-webkit-keyframes animateIn {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    -webkit-transform: translate(
+        var(--tw-enter-translate-x, 0),
+        var(--tw-enter-translate-y, 0)
+      )
+      scale(var(--tw-enter-scale, 1));
+    transform: translate(
+        var(--tw-enter-translate-x, 0),
+        var(--tw-enter-translate-y, 0)
+      )
+      scale(var(--tw-enter-scale, 1));
+  }
+  to {
+    opacity: 1;
+    -webkit-transform: translate(0, 0) scale(1);
+    transform: translate(0, 0) scale(1);
   }
 }
 
@@ -129,6 +241,19 @@
   }
 }
 
+@-webkit-keyframes pulse-ring {
+  0% {
+    -webkit-transform: scale(0.8);
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    -webkit-transform: scale(1.6);
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.8);
@@ -141,7 +266,19 @@
 }
 
 .animate-pulse-ring {
+  -webkit-animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
   animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@-webkit-keyframes indeterminate {
+  0% {
+    -webkit-transform: translateX(-100%);
+    transform: translateX(-100%);
+  }
+  100% {
+    -webkit-transform: translateX(400%);
+    transform: translateX(400%);
+  }
 }
 
 @keyframes indeterminate {
@@ -150,5 +287,48 @@
   }
   100% {
     transform: translateX(400%);
+  }
+}
+
+/* ---- Ad slot styles ---- */
+.ad-slot {
+  line-height: 0;
+  overflow: hidden;
+  text-align: center;
+}
+
+/* ---- Print styles ---- */
+@media print {
+  /* Hide non-essential elements */
+  .ad-slot,
+  nav,
+  footer,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset backgrounds for print */
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Avoid page breaks inside elements */
+  article, section, .card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Show link URLs in print */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  /* Ensure images don't overflow */
+  img {
+    max-width: 100% !important;
   }
 }
