@@ -12,7 +12,7 @@ cd /app/backend
 if [ "$NODE_ENV" = "production" ]; then
   echo "WARNING: Running 'prisma db push' in production. Consider using 'prisma migrate deploy' with migration files instead."
 fi
-npx prisma db push --skip-generate 2>&1
+npx prisma db push --skip-generate 2>&1 || npx prisma db push --skip-generate --force-reset 2>&1
 
 # Seed plans — seeding failure is non-fatal (data may already exist)
 echo "=== Seeding database ==="
