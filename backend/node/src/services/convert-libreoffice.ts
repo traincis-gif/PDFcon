@@ -133,12 +133,20 @@ export async function convertWithLibreOffice(
       "--nodefault",
       "--nofirststartwizard",
       `-env:UserInstallation=file://${homeDir}`,
+    ];
+
+    // PDF input requires the draw_pdf_import filter
+    if (normalizedInput === "pdf") {
+      args.push("--infilter=draw_pdf_import");
+    }
+
+    args.push(
       "--convert-to",
       loFormat,
       "--outdir",
       workDir,
       inputFilePath,
-    ];
+    );
 
     logger.debug({ args }, "Executing LibreOffice");
 

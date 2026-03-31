@@ -1,5 +1,5 @@
 FROM node:20-slim AS base
-RUN apt-get update && apt-get install -y openssl ca-certificates libreoffice-writer libreoffice-calc libreoffice-impress tesseract-ocr tesseract-ocr-eng poppler-utils && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl ca-certificates libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-draw libreoffice-pdfimport tesseract-ocr tesseract-ocr-eng poppler-utils && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # ========== BACKEND ==========
