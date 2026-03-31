@@ -4,11 +4,11 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Upload, FileText, X } from 'lucide-react';
+import { Pencil, History, FileText, X } from 'lucide-react';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/upload', label: 'Upload', icon: Upload },
+  { href: '/', label: 'Editor', icon: Pencil },
+  { href: '/dashboard', label: 'History', icon: History },
 ];
 
 interface NavSidebarProps {
@@ -21,7 +21,6 @@ export function NavSidebar({ open, onClose }: NavSidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
       {open && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity"
@@ -29,17 +28,15 @@ export function NavSidebar({ open, onClose }: NavSidebarProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           'fixed top-0 left-0 z-50 h-full w-64 bg-background border-r flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Branding */}
         <div className="flex items-center justify-between p-4 border-b">
           <Link
-            href="/dashboard"
+            href="/"
             className="flex items-center gap-2 group"
             onClick={onClose}
           >
@@ -57,12 +54,11 @@ export function NavSidebar({ open, onClose }: NavSidebarProps) {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
             const isActive =
-              item.href === '/dashboard'
-                ? pathname === '/dashboard'
+              item.href === '/'
+                ? pathname === '/'
                 : pathname.startsWith(item.href);
             return (
               <Link
@@ -83,10 +79,9 @@ export function NavSidebar({ open, onClose }: NavSidebarProps) {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="p-4 border-t">
           <p className="text-xs text-muted-foreground">
-            PDFlow v1.0 &mdash; Free PDF Tools
+            PDFlow v2.0 &mdash; Free PDF Tools
           </p>
         </div>
       </aside>

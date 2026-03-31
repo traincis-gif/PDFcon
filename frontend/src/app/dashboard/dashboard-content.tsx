@@ -6,12 +6,11 @@ import { useJobs } from '@/lib/hooks';
 import { JobCard } from '@/components/job-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, Loader2, FileX } from 'lucide-react';
+import { Pencil, Loader2, FileX } from 'lucide-react';
 
 export function DashboardContent() {
   const { data, isLoading, error } = useJobs();
 
-  // Sort jobs by newest first
   const sortedJobs = React.useMemo(() => {
     if (!data?.jobs) return [];
     return [...data.jobs].sort((a, b) => {
@@ -22,18 +21,18 @@ export function DashboardContent() {
   }, [data]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-bold">Job History</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Your recent document processing jobs
           </p>
         </div>
-        <Link href="/dashboard/upload">
+        <Link href="/">
           <Button className="gap-2">
-            <Upload className="h-4 w-4" />
-            New Job
+            <Pencil className="h-4 w-4" />
+            Open Editor
           </Button>
         </Link>
       </div>
@@ -62,13 +61,12 @@ export function DashboardContent() {
             </div>
             <h3 className="text-lg font-semibold mb-1">No jobs yet</h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-              Upload a file to get started! You can merge, split, compress, or
-              convert PDFs to PNG.
+              Process a file in the editor to see your job history here.
             </p>
-            <Link href="/dashboard/upload">
+            <Link href="/">
               <Button className="gap-2">
-                <Upload className="h-4 w-4" />
-                Upload Files
+                <Pencil className="h-4 w-4" />
+                Open Editor
               </Button>
             </Link>
           </CardContent>

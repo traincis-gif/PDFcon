@@ -1,104 +1,157 @@
+'use client';
+
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import type { Metadata } from 'next';
+import { FileDropzone } from '@/components/file-dropzone';
+import { PdfEditor } from '@/components/pdf-editor';
+import { cn } from '@/lib/utils';
+import {
+  FileText,
+  Merge,
+  Scissors,
+  Minimize2,
+  Image,
+  Type,
+  Stamp,
+  RotateCw,
+  Lock,
+  ScanText,
+  Layers,
+  PenTool,
+  History,
+} from 'lucide-react';
+import type { OperationType } from '@/types';
 
-export const metadata: Metadata = {
-  title: 'PDFlow — Free Online PDF Tools | Merge, Split, Compress & Convert',
-  alternates: {
-    canonical: '/',
-  },
-};
-
-const features = [
-  {
-    title: 'Merge PDFs',
-    description:
-      'Combine multiple PDF files into a single document in seconds. Drag and drop your files, reorder pages, and download a perfectly merged PDF.',
-    href: '/dashboard/upload',
-  },
-  {
-    title: 'Split PDF',
-    description:
-      'Extract specific pages or split a large PDF into smaller files. Choose exactly which pages you need — no software installation required.',
-    href: '/dashboard/upload',
-  },
-  {
-    title: 'Compress PDF',
-    description:
-      'Reduce PDF file size without losing quality. Optimise documents for email, web uploads, or archiving while keeping text and images crisp.',
-    href: '/dashboard/upload',
-  },
-  {
-    title: 'Convert PDF to PNG',
-    description:
-      'Turn PDF pages into high-quality PNG images. Perfect for presentations, thumbnails, or sharing individual pages as images.',
-    href: '/dashboard/upload',
-  },
+const quickTools: { op: OperationType; icon: React.ElementType; label: string }[] = [
+  { op: 'merge', icon: Merge, label: 'Merge' },
+  { op: 'split', icon: Scissors, label: 'Split' },
+  { op: 'compress', icon: Minimize2, label: 'Compress' },
+  { op: 'convert_to_png', icon: Image, label: 'PDF to PNG' },
+  { op: 'add_text', icon: Type, label: 'Add Text' },
+  { op: 'watermark', icon: Stamp, label: 'Watermark' },
+  { op: 'rotate', icon: RotateCw, label: 'Rotate' },
+  { op: 'encrypt', icon: Lock, label: 'Encrypt' },
+  { op: 'flatten', icon: Layers, label: 'Flatten' },
+  { op: 'sign', icon: PenTool, label: 'Sign' },
+  { op: 'ocr', icon: ScanText, label: 'OCR' },
 ];
 
 export default function HomePage() {
-  return (
-    <main className="min-h-screen bg-background">
-      {/* Hero */}
-      <section className="mx-auto max-w-5xl px-4 py-20 text-center sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-          Free Online PDF Tools
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-          Merge, split, compress, and convert your PDFs entirely in the cloud.
-          No installs, no sign-up walls — just fast, secure document processing.
-        </p>
-        <div className="mt-10">
-          <Link
-            href="/dashboard/upload"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  const [files, setFiles] = useState<File[]>([]);
+  const [editorMode, setEditorMode] = useState(false);
+
+  const handleFilesChange = useCallback((newFiles: File[]) => {
+    if (newFiles.length > 0) {
+      setFiles(newFiles);
+      setEditorMode(true);
+    }
+  }, []);
+
+  // Editor mode: show the full PDF editor
+  if (editorMode) {
+    return (
+      <div className="h-screen flex flex-col">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+          <button
+            onClick={() => {
+              setEditorMode(false);
+              setFiles([]);
+            }}
+            className="flex items-center gap-2 group"
           >
-            Start Processing — It&apos;s Free
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary text-primary-foreground">
+              <FileText className="h-4.5 w-4.5" />
+            </div>
+            <span className="text-lg font-bold tracking-tight">PDFlow</span>
+          </button>
+          <div className="flex-1" />
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <History className="h-4 w-4" />
+            <span className="hidden sm:inline">History</span>
           </Link>
-        </div>
-      </section>
+        </header>
+        <PdfEditor initialFiles={files} />
+      </div>
+    );
+  }
 
-      {/* Features */}
-      <section className="mx-auto max-w-5xl px-4 pb-24 sm:px-6 lg:px-8">
-        <div className="grid gap-8 sm:grid-cols-2">
-          {features.map((feature) => (
-            <article
-              key={feature.title}
-              className="rounded-lg border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <h2 className="text-xl font-semibold text-card-foreground">
-                {feature.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {feature.description}
-              </p>
-              <Link
-                href={feature.href}
-                className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
-              >
-                Try it now &rarr;
-              </Link>
-            </article>
-          ))}
+  // Landing mode: hero dropzone
+  return (
+    <main className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary text-primary-foreground">
+            <FileText className="h-4.5 w-4.5" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">PDFlow</span>
         </div>
-      </section>
+        <div className="flex-1" />
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <History className="h-4 w-4" />
+          <span className="hidden sm:inline">History</span>
+        </Link>
+      </header>
 
-      {/* Brief trust section */}
-      <section className="border-t bg-muted/40 py-16">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-foreground">
-            Why Choose PDFlow?
-          </h2>
-          <p className="mt-4 text-muted-foreground">
-            Your files are processed securely in the cloud and automatically
-            deleted after processing. PDFlow is free to use, works on any
-            device, and requires zero software installation.
+      {/* Hero section */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            Free Online PDF Tools
+          </h1>
+          <p className="mt-3 text-lg text-muted-foreground max-w-xl mx-auto">
+            Drop a file to merge, split, compress, convert, watermark, sign, and more.
+            No installs, no sign-ups.
           </p>
         </div>
-      </section>
+
+        {/* Hero dropzone */}
+        <div className="w-full max-w-2xl">
+          <FileDropzone
+            files={files}
+            onFilesChange={handleFilesChange}
+            mode="hero"
+            multiple={false}
+          />
+        </div>
+
+        {/* Quick tool icons */}
+        <div className="mt-10 w-full max-w-2xl">
+          <p className="text-sm text-muted-foreground text-center mb-4">
+            Or jump straight to a tool:
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {quickTools.map((tool) => {
+              const Icon = tool.icon;
+              return (
+                <button
+                  key={tool.op}
+                  type="button"
+                  onClick={() => setEditorMode(true)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors',
+                    'text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {tool.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Footer */}
-      <footer className="border-t py-8 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} PDFlow. All rights reserved.</p>
+      <footer className="border-t py-6 text-center text-sm text-muted-foreground">
+        <p>Your files are processed securely and deleted automatically after processing.</p>
       </footer>
     </main>
   );

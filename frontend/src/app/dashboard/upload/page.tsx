@@ -1,10 +1,5 @@
-import type { Metadata } from 'next';
-import { UploadContent } from './upload-content';
-
-export const metadata: Metadata = {
-  title: 'Upload & Process',
-};
+import { redirect } from 'next/navigation';
 
 export default function UploadPage() {
-  return <UploadContent />;
+  redirect('/');
 }
