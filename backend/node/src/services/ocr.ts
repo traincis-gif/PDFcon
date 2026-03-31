@@ -1,10 +1,16 @@
 import { createWorker, OEM } from "tesseract.js";
-import sharp from "sharp";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import { logger } from "../lib/logger";
 
+const execFileAsync = promisify(execFile);
+
 export interface OcrExtractOptions {
-  language?: string; // Tesseract language code, default 'eng'
+  language?: string;
 }
 
 /**
@@ -24,11 +30,7 @@ export async function ocrExtract(
     const { data } = await worker.recognize(imageBuffer);
     const text = data.text.trim();
 
-    logger.info(
-      { language, textLength: text.length },
-      "OCR extraction complete"
-    );
-
+    logger.info({ language, textLength: text.length }, "OCR extraction complete");
     return text;
   } finally {
     await worker.terminate();
@@ -36,8 +38,7 @@ export async function ocrExtract(
 }
 
 /**
- * Extract text from a PDF by converting each page to an image first, then running OCR.
- * Returns the concatenated text from all pages, separated by page markers.
+ * Extract text from a PDF by converting each page to an image via pdftoppm, then running OCR.
  */
 export async function ocrExtractFromPdf(
   pdfBuffer: Buffer,
@@ -46,63 +47,54 @@ export async function ocrExtractFromPdf(
   const language = options?.language ?? "eng";
   const dpi = options?.dpi ?? 300;
 
-  logger.info(
-    { language, dpi, bufferSize: pdfBuffer.length },
-    "Starting OCR extraction from PDF"
-  );
+  logger.info({ language, dpi, bufferSize: pdfBuffer.length }, "Starting OCR extraction from PDF");
 
   const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
   const totalPages = pdfDoc.getPageCount();
   const pageIndices = parsePageNumbers(options?.pages, totalPages);
-  const scaleFactor = dpi / 72;
+
+  const workDir = await mkdtemp(path.join(tmpdir(), "ocr-"));
+  const inputPath = path.join(workDir, "input.pdf");
+  await writeFile(inputPath, pdfBuffer);
 
   const worker = await createWorker(language, OEM.DEFAULT);
   const pageTexts: string[] = [];
 
   try {
     for (const pageIndex of pageIndices) {
-      const page = pdfDoc.getPage(pageIndex);
-      const { width, height } = page.getSize();
+      const pageNum = pageIndex + 1;
+      const outputPrefix = path.join(workDir, `ocr-page`);
 
-      // Create a single-page PDF
-      const singlePageDoc = await PDFDocument.create();
-      const [copiedPage] = await singlePageDoc.copyPages(pdfDoc, [pageIndex]);
-      singlePageDoc.addPage(copiedPage);
-      const singlePageBytes = await singlePageDoc.save();
+      // Use pdftoppm to convert PDF page to PNG
+      await execFileAsync("pdftoppm", [
+        "-png",
+        "-r", String(dpi),
+        "-f", String(pageNum),
+        "-l", String(pageNum),
+        "-singlefile",
+        inputPath,
+        outputPrefix,
+      ], { timeout: 60000 });
 
-      // Convert to PNG image for OCR (PNG is lossless, better for OCR accuracy)
-      const outputWidth = Math.round(width * scaleFactor);
-      const outputHeight = Math.round(height * scaleFactor);
-
-      const imageBuffer = await sharp(Buffer.from(singlePageBytes), {
-        density: dpi,
-      })
-        .resize(outputWidth, outputHeight, { fit: "fill" })
-        .png()
-        .toBuffer();
+      const pngPath = `${outputPrefix}.png`;
+      const imageBuffer = await readFile(pngPath);
 
       const { data } = await worker.recognize(imageBuffer);
       const pageText = data.text.trim();
       pageTexts.push(pageText);
 
-      logger.debug(
-        { pageIndex: pageIndex + 1, textLength: pageText.length },
-        "OCR extracted text from PDF page"
-      );
+      logger.debug({ pageIndex: pageNum, textLength: pageText.length }, "OCR extracted text from PDF page");
     }
   } finally {
     await worker.terminate();
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
 
   const text = pageTexts
     .map((t, i) => `--- Page ${pageIndices[i] + 1} ---\n${t}`)
     .join("\n\n");
 
-  logger.info(
-    { totalPages, processedPages: pageTexts.length, textLength: text.length },
-    "OCR extraction from PDF complete"
-  );
-
+  logger.info({ totalPages, processedPages: pageTexts.length, textLength: text.length }, "OCR extraction from PDF complete");
   return { text, pageTexts };
 }
 
@@ -110,10 +102,8 @@ function parsePageNumbers(spec: string | undefined, totalPages: number): number[
   if (!spec) {
     return Array.from({ length: totalPages }, (_, i) => i);
   }
-
   const pages: number[] = [];
   const parts = spec.split(",").map((s) => s.trim());
-
   for (const part of parts) {
     if (part.includes("-")) {
       const [startStr, endStr] = part.split("-");
@@ -127,6 +117,5 @@ function parsePageNumbers(spec: string | undefined, totalPages: number): number[
       if (page >= 0 && page < totalPages) pages.push(page);
     }
   }
-
   return [...new Set(pages)].sort((a, b) => a - b);
 }
