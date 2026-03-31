@@ -41,8 +41,9 @@ import {
   Crosshair,
   RotateCcw,
   Package,
+  TextCursorInput,
 } from 'lucide-react';
-import type { OperationType, RichTextPlacement } from '@/types';
+import type { OperationType, RichTextPlacement, TextEdit } from '@/types';
 
 /** Operations that accept multiple files */
 const multiFileOps = new Set<OperationType>(['merge', 'img_to_pdf']);
@@ -171,6 +172,9 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
   // Multi-text markers: accumulate placed texts
   const [placedTexts, setPlacedTexts] = useState<PlacedText[]>([]);
 
+  // Edit text state: accumulated inline text edits
+  const [textEdits, setTextEdits] = useState<TextEdit[]>([]);
+
   // Reorder view state
   const [showReorderView, setShowReorderView] = useState(false);
 
@@ -200,6 +204,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
       setIsUploading(false);
       setTextPopup(null);
       setPlacedTexts([]);
+      setTextEdits([]);
       setShowBatchPanel(false);
 
       // Show reorder view when reorder is selected
@@ -225,6 +230,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     setIsUploading(false);
     setTextPopup(null);
     setPlacedTexts([]);
+    setTextEdits([]);
     setShowReorderView(false);
     setShowBatchPanel(false);
   }, []);
@@ -286,6 +292,59 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     },
     [textPopup]
   );
+
+  // Handle inline text edit from TextLayer
+  const handleTextEdited = useCallback(
+    (edit: TextEdit) => {
+      setTextEdits((prev) => {
+        // Replace existing edit for the same location, or add new
+        const idx = prev.findIndex(
+          (e) =>
+            e.page === edit.page &&
+            Math.abs(e.x - edit.x) < 1 &&
+            Math.abs(e.y - edit.y) < 1
+        );
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = edit;
+          return next;
+        }
+        return [...prev, edit];
+      });
+    },
+    []
+  );
+
+  // Handle saving all text edits
+  const handleSaveTextEdits = useCallback(async () => {
+    if (textEdits.length === 0 || !primaryFile) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
+    setJobId(null);
+
+    try {
+      const metadata = { edits: textEdits };
+      const res = await api.uploadAndProcess([primaryFile], 'edit_text', (pct) => {
+        setUploadProgress(pct);
+      }, metadata);
+
+      const id = res.job_id || res.id;
+      if (id) {
+        setJobId(id);
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed');
+      toast({
+        title: 'Save failed',
+        description: err.message || 'Something went wrong',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [textEdits, primaryFile, toast]);
 
   const handleRedactRectDrawn = useCallback(
     (page: number, x: number, y: number, width: number, height: number) => {
@@ -363,6 +422,11 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     // For add_text with multi-text, check placedTexts
     if (effectiveSelectedTool === 'add_text') {
       return placedTexts.length > 0;
+    }
+
+    // For edit_text, check textEdits
+    if (effectiveSelectedTool === 'edit_text') {
+      return textEdits.length > 0;
     }
 
     return validateOptions(effectiveSelectedTool, toolOptions);
@@ -455,6 +519,20 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     [handleToolSelect, files, isUploading, jobId]
   );
 
+  // Ctrl+S / Cmd+S to save text edits
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        if (effectiveSelectedTool === 'edit_text' && textEdits.length > 0 && !isUploading && !jobId) {
+          e.preventDefault();
+          handleSaveTextEdits();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [effectiveSelectedTool, textEdits, isUploading, jobId, handleSaveTextEdits]);
+
   const handleReset = () => {
     setJobId(null);
     setUploadError(null);
@@ -462,6 +540,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     setIsUploading(false);
     setTextPopup(null);
     setPlacedTexts([]);
+    setTextEdits([]);
     setShowReorderView(false);
     setShowBatchPanel(false);
   };
@@ -503,6 +582,12 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
   const showTextDone =
     effectiveSelectedTool === 'add_text' &&
     placedTexts.length > 0 &&
+    !jobId;
+
+  // For edit_text: show "Save Changes" button when edits exist
+  const showEditTextSave =
+    effectiveSelectedTool === 'edit_text' &&
+    textEdits.length > 0 &&
     !jobId;
 
   // Check if batch mode button should show for compress
@@ -584,6 +669,9 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
               textMarkers={textMarkers}
               redactRegions={redactRegions}
               signatureMarker={signatureMarker}
+              editableText={effectiveSelectedTool === 'edit_text' && !jobId}
+              onTextEdited={handleTextEdited}
+              textEdits={textEdits}
             />
 
             {/* Multi-file indicator for merge */}
@@ -598,7 +686,11 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
             {showInteractionBanner && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30">
                 <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-full px-4 py-2 shadow-lg text-sm font-medium">
-                  <Crosshair className="h-4 w-4 animate-pulse" />
+                  {effectiveSelectedTool === 'edit_text' ? (
+                    <TextCursorInput className="h-4 w-4 animate-pulse" />
+                  ) : (
+                    <Crosshair className="h-4 w-4 animate-pulse" />
+                  )}
                   <span>{getInteractionInstruction(effectiveSelectedTool as any)}</span>
                 </div>
               </div>
@@ -686,6 +778,30 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
                     className="shadow-lg bg-background"
                   >
                     Clear All
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Edit Text: "Save Changes" floating button */}
+            {showEditTextSave && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30">
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleSaveTextEdits}
+                    disabled={!canProcess}
+                    className="gap-2 shadow-lg"
+                  >
+                    <Zap className="h-4 w-4" />
+                    Save Changes ({textEdits.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTextEdits([])}
+                    className="shadow-lg bg-background"
+                  >
+                    Discard All
                   </Button>
                 </div>
               </div>

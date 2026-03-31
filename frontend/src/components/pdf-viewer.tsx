@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import type { RedactRegion } from '@/components/redact-options';
+import type { TextEdit } from '@/types';
+import { TextLayer } from '@/components/text-layer';
 
 // We dynamically import pdfjs-dist so Next.js SSR doesn't choke on it
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
@@ -53,6 +55,9 @@ interface PdfViewerProps {
   textMarkers?: TextMarker[];
   redactRegions?: RedactRegion[];
   signatureMarker?: SignatureMarker | null;
+  editableText?: boolean;
+  onTextEdited?: (edit: TextEdit) => void;
+  textEdits?: TextEdit[];
 }
 
 export { ZOOM_LEVELS, FIT_WIDTH };
@@ -67,6 +72,9 @@ export function PdfViewer({
   textMarkers = [],
   redactRegions = [],
   signatureMarker = null,
+  editableText = false,
+  onTextEdited,
+  textEdits = [],
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
@@ -569,6 +577,19 @@ export function PdfViewer({
                 ref={setCanvasRef(pageNum)}
                 className="block"
               />
+
+              {/* Editable text layer */}
+              {editableText && info && onTextEdited && (
+                <TextLayer
+                  file={file}
+                  pageNumber={pageNum}
+                  scale={scale}
+                  pageHeight={info.height}
+                  editable={editableText}
+                  onTextEdited={onTextEdited}
+                  editedTexts={textEdits.filter((e) => e.page === pageNum - 1)}
+                />
+              )}
 
               {/* Interactive overlay layer */}
               {isInteractive && (

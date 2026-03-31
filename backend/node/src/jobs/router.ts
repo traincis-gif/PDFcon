@@ -143,6 +143,7 @@ export async function jobsRouter(app: FastifyInstance) {
       redact: "REDACT",
       sign: "SIGN",
       ocr: "OCR",
+      edit_text: "EDIT_TEXT",
     };
 
     const jobType = typeMap[body.operation] || body.operation.toUpperCase();

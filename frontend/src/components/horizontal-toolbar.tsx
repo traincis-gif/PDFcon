@@ -26,9 +26,11 @@ import {
   ImagePlus,
   FileImage,
   FileOutput,
+  TextCursorInput,
 } from 'lucide-react';
 
 const iconMap: Record<OperationType, React.ElementType> = {
+  edit_text: TextCursorInput,
   merge: Merge,
   split: Scissors,
   compress: Minimize2,
@@ -62,7 +64,7 @@ interface ToolGroupDef {
 }
 
 const pdfToolGroups: ToolGroupDef[] = [
-  { label: 'Edit', tools: ['add_text', 'watermark', 'redact', 'sign'] },
+  { label: 'Edit', tools: ['edit_text', 'add_text', 'watermark', 'redact', 'sign'] },
   { label: 'Organize', tools: ['merge', 'split', 'rotate', 'reorder', 'page_numbers'] },
   { label: 'Optimize', tools: ['compress', 'flatten', 'encrypt'] },
   {

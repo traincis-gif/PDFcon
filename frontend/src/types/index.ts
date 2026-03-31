@@ -24,7 +24,8 @@ export type OperationType =
   | 'flatten'
   | 'redact'
   | 'sign'
-  | 'ocr';
+  | 'ocr'
+  | 'edit_text';
 
 export interface User {
   id: string;
@@ -88,6 +89,17 @@ export interface ApiError {
     message: string;
     details?: unknown;
   };
+}
+
+export interface TextEdit {
+  page: number;        // 0-indexed
+  originalText: string;
+  newText: string;
+  x: number;           // PDF coordinates
+  y: number;
+  width: number;       // original text box width
+  height: number;      // original text box height
+  fontSize: number;
 }
 
 export interface RichTextPlacement {

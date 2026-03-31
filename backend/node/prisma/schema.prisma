@@ -69,6 +69,7 @@ enum JobType {
   REDACT
   SIGN
   OCR
+  EDIT_TEXT
 }
 
 model Job {

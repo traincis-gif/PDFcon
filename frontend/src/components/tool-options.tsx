@@ -334,10 +334,10 @@ export function validateOptions(
 }
 
 /** Tools that need interactive viewer modes */
-export type InteractiveTool = 'add_text' | 'redact' | 'sign';
+export type InteractiveTool = 'add_text' | 'redact' | 'sign' | 'edit_text';
 
 export function isInteractiveTool(tool: OperationType): tool is InteractiveTool {
-  return tool === 'add_text' || tool === 'redact' || tool === 'sign';
+  return tool === 'add_text' || tool === 'redact' || tool === 'sign' || tool === 'edit_text';
 }
 
 /** Get instruction text for interactive tools */
@@ -345,6 +345,8 @@ export function getInteractionInstruction(tool: InteractiveTool): string {
   switch (tool) {
     case 'add_text':
       return 'Click on the document to place text';
+    case 'edit_text':
+      return 'Click on any text to edit it';
     case 'redact':
       return 'Draw rectangles on the document to mark areas for redaction';
     case 'sign':

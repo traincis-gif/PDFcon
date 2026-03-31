@@ -42,6 +42,7 @@ export function operationLabel(op: string): string {
     pptx_to_pdf: 'PPT to PDF',
     html_to_pdf: 'HTML to PDF',
     img_to_pdf: 'Images to PDF',
+    edit_text: 'Edit Text',
     add_text: 'Add Text',
     watermark: 'Watermark',
     rotate: 'Rotate',

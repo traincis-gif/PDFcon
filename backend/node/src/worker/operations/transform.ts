@@ -8,6 +8,7 @@ import { redactPdf } from "../../services/pdf-redact";
 import { addSignature } from "../../services/pdf-sign";
 import { addTextToPdf } from "../../services/pdf-add-text";
 import { addWatermark } from "../../services/pdf-watermark";
+import { editPdfText } from "../../services/pdf-edit-text";
 
 function requireFileKey(metadata: Record<string, any>, label: string): string {
   if (!metadata.fileKeys || metadata.fileKeys.length === 0) {
@@ -128,6 +129,26 @@ export const transformHandlers: Record<string, OperationHandler> = {
     await ctx.updateStatus(jobId, "DONE", {
       outputUrl: result.outputKey,
       metadata: { ...metadata, pageCount: result.pageCount },
+    });
+    ctx.reportProgress(100);
+    return { outputKey: result.outputKey, contentType: "application/pdf" };
+  },
+
+  EDIT_TEXT: async (jobId, metadata, ctx) => {
+    const inputKey = requireFileKey(metadata, "edit text");
+    if (!metadata.edits || metadata.edits.length === 0) {
+      throw new Error("At least one text edit is required");
+    }
+    ctx.reportProgress(10);
+    const result = await editPdfText({
+      inputKey,
+      outputKey: `${metadata._outputBase}/text-edited.pdf`,
+      edits: metadata.edits,
+    });
+    ctx.reportProgress(90);
+    await ctx.updateStatus(jobId, "DONE", {
+      outputUrl: result.outputKey,
+      metadata: { ...metadata, editCount: result.editCount },
     });
     ctx.reportProgress(100);
     return { outputKey: result.outputKey, contentType: "application/pdf" };

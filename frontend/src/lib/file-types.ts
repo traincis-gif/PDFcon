@@ -51,6 +51,7 @@ export function detectFileType(file: File): FileCategory {
 
 export const toolsForFileType: Record<FileCategory, OperationType[]> = {
   pdf: [
+    'edit_text',
     'add_text',
     'watermark',
     'sign',

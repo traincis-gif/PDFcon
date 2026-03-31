@@ -56,6 +56,7 @@ export const jobTypeEnum = z.enum([
   "REDACT",
   "SIGN",
   "OCR",
+  "EDIT_TEXT",
 ]);
 
 const redactRegionSchema = z.object({
@@ -148,6 +149,17 @@ export const createJobSchema = z.object({
         .optional(),
       width: z.number().min(1).optional(),
       height: z.number().min(1).optional(),
+      // Edit Text: inline text edits
+      edits: z.array(z.object({
+        page: z.number().int().min(0),
+        x: z.number(),
+        y: z.number(),
+        width: z.number().min(0),
+        height: z.number().min(0),
+        originalText: z.string().max(MAX_STRING_LENGTH),
+        newText: z.string().max(MAX_STRING_LENGTH),
+        fontSize: z.number().min(1).max(500),
+      })).max(500).optional(),
       // OCR: language code
       language: z
         .string()
