@@ -200,9 +200,9 @@ export function PageManager({ file, onSave, onCancel, isProcessing }: PageManage
         seenSourcePages.set(key, (seenSourcePages.get(key) || 0) + 1);
       }
     }
-    for (const [, c] of seenSourcePages) {
+    seenSourcePages.forEach((c) => {
       if (c > 1) count += c - 1;
-    }
+    });
     return count;
   }, [pages]);
 
