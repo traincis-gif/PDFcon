@@ -59,6 +59,8 @@ const operationHints: Record<OperationType, string> = {
   redact: 'Upload one PDF to black out sensitive areas.',
   sign: 'Upload one PDF to add a signature image.',
   ocr: 'Upload one PDF to extract text using OCR.',
+  edit_text: 'Upload one PDF to edit text directly on the document.',
+  manage_pages: 'Upload one PDF to manage, reorder, delete, or add pages.',
 };
 
 /** Operations that accept multiple files */
