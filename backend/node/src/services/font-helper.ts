@@ -1,4 +1,5 @@
 import { PDFDocument, PDFFont, StandardFonts } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import * as fs from "fs/promises";
 import { logger } from "../lib/logger";
 
@@ -46,6 +47,7 @@ export async function embedFont(pdfDoc: PDFDocument): Promise<PDFFont> {
   const fontBytes = await loadSystemFont();
 
   if (fontBytes) {
+    pdfDoc.registerFontkit(fontkit);
     return pdfDoc.embedFont(fontBytes);
   }
 
