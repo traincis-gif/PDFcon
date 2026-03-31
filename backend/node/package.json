@@ -32,6 +32,7 @@
     "pdfjs-dist": "^4.1.392",
     "pino": "^8.19.0",
     "pino-pretty": "^11.0.0",
+    "archiver": "^7.0.1",
     "sharp": "^0.33.3",
     "tesseract.js": "^5.0.5",
     "prisma": "^5.12.0",

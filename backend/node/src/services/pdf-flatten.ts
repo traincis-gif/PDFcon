@@ -1,4 +1,5 @@
 import { PDFDocument } from "pdf-lib";
+import { logger } from "../lib/logger";
 
 /**
  * Flatten all form fields in a PDF, converting interactive fields
@@ -10,9 +11,13 @@ export async function flattenPdf(pdfBuffer: Buffer): Promise<Buffer> {
   try {
     const form = pdfDoc.getForm();
     form.flatten();
-  } catch {
+  } catch (error) {
     // If there are no form fields or the form cannot be retrieved,
     // just return the PDF as-is (re-saved through pdf-lib).
+    logger.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Could not flatten PDF form fields (PDF may have no forms)"
+    );
   }
 
   const resultBytes = await pdfDoc.save();

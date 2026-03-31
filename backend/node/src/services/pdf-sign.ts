@@ -20,6 +20,7 @@ export interface SignatureOptions {
  *
  * The image is embedded and drawn at the specified position and optional size.
  * Image format is auto-detected from the base64 data header bytes.
+ * Signature dimensions are clamped to fit within page bounds.
  */
 export async function addSignature(
   pdfBuffer: Buffer,
@@ -55,13 +56,31 @@ export async function addSignature(
     : await pdfDoc.embedJpg(imageBytes);
 
   const dims = image.scale(1);
-  const drawWidth = width ?? dims.width;
-  const drawHeight = height ?? dims.height;
+  let drawWidth = width ?? dims.width;
+  let drawHeight = height ?? dims.height;
 
   const targetPage = pages[pageIndex];
+  const { width: pageWidth, height: pageHeight } = targetPage.getSize();
+
+  // Clamp position to be within page bounds (ensure non-negative)
+  let drawX = Math.max(0, Math.min(x, pageWidth));
+  let drawY = Math.max(0, Math.min(y, pageHeight));
+
+  // Clamp dimensions so the signature fits within the page from (drawX, drawY)
+  const availableWidth = pageWidth - drawX;
+  const availableHeight = pageHeight - drawY;
+
+  if (drawWidth > availableWidth || drawHeight > availableHeight) {
+    const scaleX = availableWidth / drawWidth;
+    const scaleY = availableHeight / drawHeight;
+    const scale = Math.min(scaleX, scaleY);
+    drawWidth = drawWidth * scale;
+    drawHeight = drawHeight * scale;
+  }
+
   targetPage.drawImage(image, {
-    x,
-    y,
+    x: drawX,
+    y: drawY,
     width: drawWidth,
     height: drawHeight,
   });

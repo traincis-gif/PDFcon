@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, writeFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "../lib/logger";
@@ -177,19 +177,22 @@ export async function convertWithLibreOffice(
       outputPath = expectedOutputPath;
     } catch {
       // Scan directory for output file (exclude input, dirs, dotfiles)
-      const { stat } = await import("node:fs/promises");
       const files = await readdir(workDir);
-      const outputFile = files.find((f) => {
-        if (f === inputFileName) return false;
-        if (f.startsWith(".")) return false; // Skip .cache, .config, etc.
-        // Check it's a file, not a directory
+      let outputFile: string | undefined;
+
+      for (const f of files) {
+        if (f === inputFileName) continue;
+        if (f.startsWith(".")) continue;
         try {
-          const s = require("node:fs").statSync(path.join(workDir, f));
-          return s.isFile();
+          const s = await stat(path.join(workDir, f));
+          if (s.isFile()) {
+            outputFile = f;
+            break;
+          }
         } catch {
-          return false;
+          // Skip files we can't stat
         }
-      });
+      }
 
       if (!outputFile) {
         const allFiles = files.join(", ");

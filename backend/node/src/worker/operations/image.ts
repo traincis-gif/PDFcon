@@ -3,6 +3,8 @@ import { compressPdf } from "../../services/pdf-compress";
 import { pdfToPng } from "../../services/pdf-to-png";
 import { pdfToJpg } from "../../services/pdf-to-jpg";
 import { imagesToPdf } from "../../services/img-to-pdf";
+import { createZipArchive } from "../../services/zip-archive";
+import { getObjectBuffer, putObject } from "../../storage/r2";
 
 function requireFileKey(metadata: Record<string, any>, label: string): string {
   if (!metadata.fileKeys || metadata.fileKeys.length === 0) {
@@ -20,11 +22,33 @@ export const imageHandlers: Record<string, OperationHandler> = {
       dpi: metadata.dpi || 150,
       pages: metadata.pages,
     });
+
+    // Single page: return the image directly
+    if (result.outputKeys.length === 1) {
+      await ctx.updateStatus(jobId, "DONE", {
+        outputUrl: result.outputKeys[0],
+        metadata: { ...metadata, outputKeys: result.outputKeys, pageCount: result.pageCount },
+      });
+      return { outputKey: result.outputKeys[0], contentType: "image/png" };
+    }
+
+    // Multiple pages: ZIP all PNGs together
+    const zipEntries = await Promise.all(
+      result.outputKeys.map(async (key, i) => {
+        const buffer = await getObjectBuffer(key);
+        return { name: `page-${i + 1}.png`, buffer };
+      })
+    );
+
+    const zipBuffer = await createZipArchive(zipEntries);
+    const zipKey = `${metadata._outputBase}/pages.zip`;
+    await putObject(zipKey, zipBuffer, "application/zip");
+
     await ctx.updateStatus(jobId, "DONE", {
-      outputUrl: result.outputKeys[0],
+      outputUrl: zipKey,
       metadata: { ...metadata, outputKeys: result.outputKeys, pageCount: result.pageCount },
     });
-    return { outputKey: result.outputKeys[0], contentType: "image/png" };
+    return { outputKey: zipKey, contentType: "application/zip" };
   },
 
   PDF_TO_JPG: async (jobId, metadata, ctx) => {
@@ -35,11 +59,33 @@ export const imageHandlers: Record<string, OperationHandler> = {
       dpi: metadata.dpi || 150,
       pages: metadata.pages,
     });
+
+    // Single page: return the image directly
+    if (result.outputKeys.length === 1) {
+      await ctx.updateStatus(jobId, "DONE", {
+        outputUrl: result.outputKeys[0],
+        metadata: { ...metadata, outputKeys: result.outputKeys, pageCount: result.pageCount },
+      });
+      return { outputKey: result.outputKeys[0], contentType: "image/jpeg" };
+    }
+
+    // Multiple pages: ZIP all JPGs together
+    const zipEntries = await Promise.all(
+      result.outputKeys.map(async (key, i) => {
+        const buffer = await getObjectBuffer(key);
+        return { name: `page-${i + 1}.jpg`, buffer };
+      })
+    );
+
+    const zipBuffer = await createZipArchive(zipEntries);
+    const zipKey = `${metadata._outputBase}/pages.zip`;
+    await putObject(zipKey, zipBuffer, "application/zip");
+
     await ctx.updateStatus(jobId, "DONE", {
-      outputUrl: result.outputKeys[0],
+      outputUrl: zipKey,
       metadata: { ...metadata, outputKeys: result.outputKeys, pageCount: result.pageCount },
     });
-    return { outputKey: result.outputKeys[0], contentType: "image/jpeg" };
+    return { outputKey: zipKey, contentType: "application/zip" };
   },
 
   IMG_TO_PDF: async (jobId, metadata, ctx) => {

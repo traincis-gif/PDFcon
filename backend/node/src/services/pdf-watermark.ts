@@ -9,7 +9,29 @@ export interface WatermarkOptions {
   fontSize?: number;
   opacity?: number;
   rotation?: number;
-  color?: { r: number; g: number; b: number };
+  color?: string | { r: number; g: number; b: number };
+}
+
+/**
+ * Parse a color value that may be a hex string (e.g. "#9CA3AF") or an
+ * { r, g, b } object (0-1 range) into an { r, g, b } object in 0-1 range.
+ */
+function parseColor(
+  color: string | { r: number; g: number; b: number } | undefined
+): { r: number; g: number; b: number } {
+  if (!color) {
+    return { r: 0.5, g: 0.5, b: 0.5 };
+  }
+
+  if (typeof color === "string") {
+    const hex = color.replace(/^#/, "");
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+    return { r, g, b };
+  }
+
+  return color;
 }
 
 export async function addWatermark(
@@ -22,8 +44,10 @@ export async function addWatermark(
     fontSize = 60,
     opacity = 0.15,
     rotation = 45,
-    color = { r: 0.5, g: 0.5, b: 0.5 },
+    color: rawColor,
   } = options;
+
+  const color = parseColor(rawColor);
 
   logger.info({ inputKey, text: text.substring(0, 50) }, "Starting PDF watermark");
 

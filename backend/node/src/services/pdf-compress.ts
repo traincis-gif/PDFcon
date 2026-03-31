@@ -9,9 +9,9 @@ export interface CompressOptions {
 }
 
 const QUALITY_MAP = {
-  low: { removeMetadata: true, flattenForms: true, downsampleImages: true },
-  medium: { removeMetadata: true, flattenForms: false, downsampleImages: true },
-  high: { removeMetadata: false, flattenForms: false, downsampleImages: false },
+  low: { removeMetadata: true, flattenForms: true },
+  medium: { removeMetadata: true, flattenForms: false },
+  high: { removeMetadata: false, flattenForms: false },
 };
 
 export async function compressPdf(
@@ -44,7 +44,17 @@ export async function compressPdf(
     compressedDoc.setCreator("PDFlow");
   }
 
-  // Save with object stream compression
+  // Flatten forms for maximum compression (low quality)
+  if (settings.flattenForms) {
+    try {
+      const form = compressedDoc.getForm();
+      form.flatten();
+    } catch {
+      // No form fields to flatten, that's fine
+    }
+  }
+
+  // Save with object stream compression for better deflate compression
   const compressedBytes = await compressedDoc.save({
     useObjectStreams: true,
     addDefaultPage: false,
