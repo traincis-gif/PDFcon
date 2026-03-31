@@ -22,7 +22,7 @@ export async function cleanupExpiredJobs(): Promise<{ deletedCount: number }> {
     take: CLEANUP_BATCH_SIZE,
     select: {
       id: true,
-      userId: true,
+      sessionId: true,
       inputUrl: true,
       outputUrl: true,
       metadata: true,

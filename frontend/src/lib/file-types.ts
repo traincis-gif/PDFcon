@@ -92,3 +92,16 @@ export function getDefaultTool(category: FileCategory): OperationType | null {
       return null;
   }
 }
+
+/**
+ * Operations that support batch processing -- each file is processed
+ * independently (as opposed to merge which combines files).
+ */
+export const batchOperations = new Set<OperationType>([
+  'compress',
+]);
+
+/** Check whether an operation supports batch mode */
+export function isBatchOperation(op: OperationType): boolean {
+  return batchOperations.has(op);
+}

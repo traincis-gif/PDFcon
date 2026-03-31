@@ -65,20 +65,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Forward cookies from the browser request to the backend
+    const cookieHeader = request.headers.get('cookie') || '';
+
     // Send to backend as JSON
     const response = await fetch(`${BACKEND_URL}/jobs/upload-and-process`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+      },
       body: JSON.stringify({ files, operation, metadata }),
     });
 
     const data = await response.json();
 
-    if (!response.ok) {
-      return NextResponse.json(data, { status: response.status });
+    const nextResponse = NextResponse.json(data, {
+      status: response.ok ? 201 : response.status,
+    });
+
+    // Forward Set-Cookie headers from backend response back to browser
+    const setCookieHeaders = response.headers.getSetCookie?.() || [];
+    for (const setCookie of setCookieHeaders) {
+      nextResponse.headers.append('Set-Cookie', setCookie);
     }
 
-    return NextResponse.json(data, { status: 201 });
+    return nextResponse;
   } catch (error: any) {
     console.error('Upload error:', error);
     return NextResponse.json(

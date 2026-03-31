@@ -3,6 +3,7 @@ import fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import cookie from "@fastify/cookie";
 import { config } from "./config";
 import { logger } from "./lib/logger";
 import { errorHandler } from "./lib/errors";
@@ -21,6 +22,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // --- Plugins ---
+
+  // Cookie support for session management
+  await app.register(cookie);
 
   // CORS: strict origins in production, permissive in development
   const isProduction = config.NODE_ENV === "production";
@@ -72,6 +76,21 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // --- Security hooks (sanitization, request ID header) ---
   registerSecurityHooks(app);
+
+  // --- Session cookie management ---
+  app.addHook("preHandler", (request, reply, done) => {
+    const existing = request.cookies["pdflow-session"];
+    if (!existing) {
+      const sessionId = crypto.randomUUID();
+      reply.setCookie("pdflow-session", sessionId, {
+        httpOnly: true,
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
+        sameSite: "lax",
+      });
+    }
+    done();
+  });
 
   // --- Request logging ---
   app.addHook("onRequest", (request, reply, done) => {

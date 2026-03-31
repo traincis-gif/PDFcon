@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useJobStatus } from '@/lib/hooks';
+import { useJobStatus, useJobProgress } from '@/lib/hooks';
 import { Progress } from '@/components/ui/progress';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -40,9 +40,12 @@ export function JobProgress({
   uploadError,
 }: JobProgressProps) {
   const { data: job } = useJobStatus(jobId || '');
+  const { data: progressData } = useJobProgress(jobId || '');
   const status = job?.status?.toLowerCase();
   const jobOperation = job?.operation || job?.type || '';
   const jobErrorMessage = job?.error_message || job?.errorMessage;
+
+  const processingProgress = progressData?.progress ?? 0;
 
   useEffect(() => {
     if (status === 'done' && onComplete) {
@@ -109,15 +112,21 @@ export function JobProgress({
     );
   }
 
-  // Job processing
+  // Job processing - show real-time progress percentage
   if (status === 'processing') {
+    const displayPercent = Math.max(processingProgress, 5);
     return (
       <div className="rounded-lg border border-blue-500/20 bg-blue-50/50 dark:bg-blue-900/10 p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-400">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Processing: {operationLabel(jobOperation)}...
+        <div className="flex items-center justify-between text-sm">
+          <span className="flex items-center gap-2 font-medium text-blue-700 dark:text-blue-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Processing: {operationLabel(jobOperation)}...
+          </span>
+          <span className="font-semibold text-blue-600 dark:text-blue-300 tabular-nums">
+            {processingProgress}%
+          </span>
         </div>
-        <Progress indeterminate />
+        <Progress value={displayPercent} />
       </div>
     );
   }

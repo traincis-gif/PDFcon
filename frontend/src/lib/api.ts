@@ -1,4 +1,4 @@
-import type { Job, JobsResponse, UploadResponse } from '@/types';
+import type { Job, JobsResponse, UploadResponse, ProgressResponse } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -18,6 +18,7 @@ class ApiClient {
     const res = await fetch(`${API_URL}${path}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     if (!res.ok) {
@@ -34,6 +35,10 @@ class ApiClient {
 
   async getJob(id: string): Promise<Job> {
     return this.request<Job>(`/jobs/${id}`);
+  }
+
+  async getJobProgress(id: string): Promise<ProgressResponse> {
+    return this.request<ProgressResponse>(`/jobs/${id}/progress`);
   }
 
   async uploadAndProcess(
@@ -53,6 +58,7 @@ class ApiClient {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `/api/upload`);
+      xhr.withCredentials = true;
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
@@ -76,6 +82,35 @@ class ApiClient {
       xhr.onerror = () => reject(new Error('Network error'));
       xhr.send(formData);
     });
+  }
+
+  /**
+   * Batch upload and process multiple files with the same operation.
+   * Creates a separate job for each file.
+   * Returns an array of job IDs.
+   */
+  async batchUploadAndProcess(
+    files: File[],
+    operation: string,
+    onFileProgress?: (fileIndex: number, percent: number) => void,
+    metadata?: Record<string, unknown>
+  ): Promise<string[]> {
+    const jobIds: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const res = await this.uploadAndProcess(
+        [files[i]],
+        operation,
+        (pct) => {
+          if (onFileProgress) onFileProgress(i, pct);
+        },
+        metadata
+      );
+      const id = res.job_id || res.id;
+      if (id) jobIds.push(id);
+    }
+
+    return jobIds;
   }
 
   getDownloadUrl(jobId: string): string {

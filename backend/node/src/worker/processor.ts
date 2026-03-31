@@ -79,6 +79,12 @@ export async function processJob(job: Job<JobData>): Promise<any> {
     getFile: getObjectBuffer,
     putFile: putObject,
     updateStatus: updateJobStatus,
+    reportProgress: (percent: number) => {
+      const clamped = Math.min(100, Math.max(0, Math.round(percent)));
+      job.updateProgress(clamped).catch((err) => {
+        logger.warn({ jobId, err: err.message }, "Failed to update job progress");
+      });
+    },
   };
 
   // Attach output base path so handlers can build output keys

@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import crypto from "crypto";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import { createJobSchema, listJobsSchema, jobIdParamSchema, uploadUrlSchema } from "./schemas";
 import { createJob, getJob, listJobs, cancelJob, getUsageStats } from "./service";
 import { getUploadUrl, getDownloadUrl } from "../storage/r2";
@@ -8,8 +9,16 @@ import {
   validateFileSize,
   validateStorageKey,
 } from "../middleware/security";
+import { getPdfQueue } from "../worker/queue";
 
-const ANONYMOUS_USER_ID = "00000000-0000-0000-0000-000000000000";
+/** Extract or create session ID from the pdflow-session cookie */
+function getSessionId(request: FastifyRequest): string {
+  const existing = request.cookies["pdflow-session"];
+  if (existing) return existing;
+  // Fallback — should not happen since preHandler in app.ts sets it,
+  // but guard defensively.
+  return crypto.randomUUID();
+}
 
 export async function jobsRouter(app: FastifyInstance) {
   // Stricter rate limit for job creation endpoints
@@ -24,30 +33,55 @@ export async function jobsRouter(app: FastifyInstance) {
 
   app.post("/jobs", jobCreationRateLimit, async (request, reply) => {
     const body = createJobSchema.parse(request.body);
-    const job = await createJob(ANONYMOUS_USER_ID, body);
+    const sessionId = getSessionId(request);
+    const job = await createJob(sessionId, body);
     return reply.status(201).send(job);
   });
 
   app.get("/jobs", async (request, reply) => {
     const query = listJobsSchema.parse(request.query);
-    const result = await listJobs(ANONYMOUS_USER_ID, query);
+    const sessionId = getSessionId(request);
+    const result = await listJobs(sessionId, query);
     return reply.send(result);
   });
 
   app.get("/jobs/:id", async (request, reply) => {
     const { id } = jobIdParamSchema.parse(request.params);
-    const job = await getJob(ANONYMOUS_USER_ID, id);
+    const sessionId = getSessionId(request);
+    const job = await getJob(sessionId, id);
     return reply.send(job);
+  });
+
+  // Progress endpoint - returns BullMQ job progress percentage
+  app.get("/jobs/:id/progress", async (request, reply) => {
+    const { id } = jobIdParamSchema.parse(request.params);
+    const sessionId = getSessionId(request);
+    const dbJob = await getJob(sessionId, id);
+    let progress = 0;
+    try {
+      const bullJob = await getPdfQueue().getJob(id);
+      if (bullJob) {
+        const p = bullJob.progress;
+        progress = typeof p === "number" ? p : 0;
+      }
+    } catch {
+      // If BullMQ job not found, derive progress from status
+    }
+    const status = dbJob.status;
+    if (status === "DONE") progress = 100;
+    return reply.send({ progress, status });
   });
 
   app.delete("/jobs/:id", async (request, reply) => {
     const { id } = jobIdParamSchema.parse(request.params);
-    const job = await cancelJob(ANONYMOUS_USER_ID, id);
+    const sessionId = getSessionId(request);
+    const job = await cancelJob(sessionId, id);
     return reply.send(job);
   });
 
   app.get("/jobs/usage/stats", async (request, reply) => {
-    const stats = await getUsageStats(ANONYMOUS_USER_ID);
+    const sessionId = getSessionId(request);
+    const stats = await getUsageStats(sessionId);
     return reply.send(stats);
   });
 
@@ -71,12 +105,14 @@ export async function jobsRouter(app: FastifyInstance) {
       });
     }
 
+    const sessionId = getSessionId(request);
+
     const { putObject } = await import("../storage/r2");
     const fileKeys: string[] = [];
 
     for (const file of body.files) {
       const safeName = sanitizeFileName(file.name);
-      const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${safeName}`;
+      const key = `uploads/${sessionId}/${Date.now()}-${safeName}`;
       const buffer = Buffer.from(file.data, "base64");
       await putObject(key, buffer, file.mimetype);
       fileKeys.push(key);
@@ -111,7 +147,7 @@ export async function jobsRouter(app: FastifyInstance) {
 
     const jobType = typeMap[body.operation] || body.operation.toUpperCase();
 
-    const job = await createJob(ANONYMOUS_USER_ID, {
+    const job = await createJob(sessionId, {
       type: jobType as any,
       metadata: { fileKeys, ...(body.metadata || {}) },
     });
@@ -134,7 +170,8 @@ export async function jobsRouter(app: FastifyInstance) {
     // Sanitize the file name to prevent path traversal
     const safeName = sanitizeFileName(fileName);
 
-    const key = `uploads/${ANONYMOUS_USER_ID}/${Date.now()}-${safeName}`;
+    const sessionId = getSessionId(request);
+    const key = `uploads/${sessionId}/${Date.now()}-${safeName}`;
 
     // Validate the constructed key
     validateStorageKey(key);
@@ -146,7 +183,8 @@ export async function jobsRouter(app: FastifyInstance) {
   // Presigned download URL
   app.get("/jobs/:id/download", async (request, reply) => {
     const { id } = jobIdParamSchema.parse(request.params);
-    const job = await getJob(ANONYMOUS_USER_ID, id);
+    const sessionId = getSessionId(request);
+    const job = await getJob(sessionId, id);
     if (!job.outputUrl) {
       return reply.status(404).send({
         error: { code: "NOT_READY", message: "Job output not yet available" },

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './api';
-import type { Job, JobsResponse } from '@/types';
+import type { Job, JobsResponse, ProgressResponse } from '@/types';
 
 export function useJobs() {
   return useQuery<JobsResponse>({
@@ -30,6 +30,22 @@ export function useJobStatus(id: string) {
       const s = data.status.toLowerCase();
       if (s === 'done' || s === 'failed') return false;
       return 3000;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useJobProgress(id: string) {
+  return useQuery<ProgressResponse>({
+    queryKey: ['job-progress', id],
+    queryFn: () => api.getJobProgress(id),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 2000;
+      const s = data.status?.toLowerCase();
+      if (s === 'done' || s === 'failed') return false;
+      if (data.progress >= 100) return false;
+      return 1500;
     },
     enabled: !!id,
   });

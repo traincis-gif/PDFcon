@@ -2,6 +2,7 @@ export interface OperationContext {
   getFile: (key: string) => Promise<Buffer>;
   putFile: (key: string, buffer: Buffer, contentType: string) => Promise<void>;
   updateStatus: (jobId: string, status: string, data?: any) => Promise<void>;
+  reportProgress: (percent: number) => void;
 }
 
 export interface OperationResult {

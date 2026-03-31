@@ -9,7 +9,9 @@ import { HorizontalToolbar } from '@/components/horizontal-toolbar';
 import { FloatingToolPanel } from '@/components/floating-tool-panel';
 import { TextPlacementPopup } from '@/components/text-placement-popup';
 import { ImagePreview } from '@/components/image-preview';
-import { detectFileType, toolsForFileType, getDefaultTool } from '@/lib/file-types';
+import { PageReorderView } from '@/components/page-reorder-view';
+import { BatchPanel } from '@/components/batch-panel';
+import { detectFileType, toolsForFileType, getDefaultTool, isBatchOperation } from '@/lib/file-types';
 import type { FileCategory } from '@/lib/file-types';
 import {
   buildMetadata,
@@ -38,6 +40,7 @@ import {
   ImageIcon,
   Crosshair,
   RotateCcw,
+  Package,
 } from 'lucide-react';
 import type { OperationType } from '@/types';
 
@@ -77,7 +80,6 @@ const immediateTools = new Set<OperationType>([
 const panelTools = new Set<OperationType>([
   'watermark',
   'rotate',
-  'reorder',
   'encrypt',
   'page_numbers',
 ]);
@@ -161,6 +163,12 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
   // Multi-text markers: accumulate placed texts
   const [placedTexts, setPlacedTexts] = useState<PlacedText[]>([]);
 
+  // Reorder view state
+  const [showReorderView, setShowReorderView] = useState(false);
+
+  // Batch panel state
+  const [showBatchPanel, setShowBatchPanel] = useState(false);
+
   const primaryFile = files[0] || null;
   const fileCategory: FileCategory = primaryFile ? detectFileType(primaryFile) : 'pdf';
   const canPreviewPdf = primaryFile && isPdfFile(primaryFile);
@@ -184,6 +192,14 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
       setIsUploading(false);
       setTextPopup(null);
       setPlacedTexts([]);
+      setShowBatchPanel(false);
+
+      // Show reorder view when reorder is selected
+      if (tool === 'reorder') {
+        setShowReorderView(true);
+      } else {
+        setShowReorderView(false);
+      }
 
       // If switching away from multi-file op, trim to one file
       if (!multiFileOps.has(tool) && files.length > 1) {
@@ -201,6 +217,8 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     setIsUploading(false);
     setTextPopup(null);
     setPlacedTexts([]);
+    setShowReorderView(false);
+    setShowBatchPanel(false);
   }, []);
 
   // Interactive viewer callbacks - extended with screen coordinates
@@ -359,6 +377,44 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     }
   };
 
+  // Handle reorder apply from PageReorderView
+  const handleReorderApply = useCallback(async (pageOrder: number[]) => {
+    setToolOptions((prev) => ({
+      ...prev,
+      reorderOptions: { pageOrder: pageOrder.join(',') },
+    }));
+
+    // Directly process with the page order
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
+    setJobId(null);
+
+    try {
+      const metadata = { pageOrder };
+      const res = await api.uploadAndProcess(files, 'reorder', (pct) => {
+        setUploadProgress(pct);
+      }, metadata);
+
+      const id = res.job_id || res.id;
+      if (id) {
+        setJobId(id);
+        setShowReorderView(false);
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed');
+      toast({
+        title: 'Upload failed',
+        description: err.message || 'Something went wrong',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [files, toast]);
+
   // For immediate tools: process as soon as tool is selected (when files present)
   const handleImmediateToolSelect = useCallback(
     (tool: OperationType) => {
@@ -382,6 +438,8 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     setIsUploading(false);
     setTextPopup(null);
     setPlacedTexts([]);
+    setShowReorderView(false);
+    setShowBatchPanel(false);
   };
 
   const handleFullReset = () => {
@@ -423,10 +481,20 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
     placedTexts.length > 0 &&
     !jobId;
 
+  // Check if batch mode button should show for compress
+  const showBatchOption =
+    effectiveSelectedTool &&
+    isBatchOperation(effectiveSelectedTool) &&
+    primaryFile &&
+    canPreviewPdf &&
+    !jobId &&
+    !isUploading &&
+    !showBatchPanel;
+
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden">
       {/* Horizontal toolbar - replaces sidebar */}
-      {primaryFile && !showJobOverlay && (
+      {primaryFile && !showJobOverlay && !showReorderView && !showBatchPanel && (
         <HorizontalToolbar
           fileCategory={fileCategory}
           selectedTool={effectiveSelectedTool}
@@ -435,7 +503,7 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
       )}
 
       {/* Viewer toolbar (when we have a PDF file) */}
-      {primaryFile && canPreviewPdf && (
+      {primaryFile && canPreviewPdf && !showReorderView && !showBatchPanel && (
         <ViewerToolbar
           fileName={primaryFile.name}
           fileSize={primaryFile.size}
@@ -448,7 +516,24 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
 
       {/* Content area */}
       <div className="flex-1 relative overflow-hidden flex flex-col">
-        {!primaryFile ? (
+        {/* Batch panel overlay */}
+        {showBatchPanel && primaryFile && effectiveSelectedTool && (
+          <BatchPanel
+            operation={effectiveSelectedTool}
+            initialFile={primaryFile}
+            onClose={() => setShowBatchPanel(false)}
+          />
+        )}
+
+        {/* Reorder view - replaces the PDF viewer when reorder is active */}
+        {showReorderView && primaryFile && canPreviewPdf && !showJobOverlay ? (
+          <PageReorderView
+            file={primaryFile}
+            onApply={handleReorderApply}
+            onCancel={handleToolDeselect}
+            isProcessing={isUploading}
+          />
+        ) : !primaryFile ? (
           /* No file: show dropzone in editor */
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="w-full max-w-lg">
@@ -614,15 +699,29 @@ export function PdfEditor({ initialFiles, onStartOver }: PdfEditorProps) {
               !showJobOverlay &&
               fileCategory === 'pdf' && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30">
-                  <Button
-                    onClick={handleProcess}
-                    disabled={!canProcess}
-                    size="lg"
-                    className="gap-2 shadow-lg"
-                  >
-                    <Zap className="h-4 w-4" />
-                    {operationLabel(effectiveSelectedTool)}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleProcess}
+                      disabled={!canProcess}
+                      size="lg"
+                      className="gap-2 shadow-lg"
+                    >
+                      <Zap className="h-4 w-4" />
+                      {operationLabel(effectiveSelectedTool)}
+                    </Button>
+                    {/* Batch mode button for compress */}
+                    {showBatchOption && (
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={() => setShowBatchPanel(true)}
+                        className="gap-2 shadow-lg bg-background"
+                      >
+                        <Package className="h-4 w-4" />
+                        Batch
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
           </div>

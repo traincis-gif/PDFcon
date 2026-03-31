@@ -50,21 +50,6 @@ async function main() {
     console.log(`  Upserted plan: ${plan.name}`);
   }
 
-  // Create anonymous user for no-auth mode
-  console.log("Creating anonymous user...");
-  const freePlan = await prisma.plan.findUnique({ where: { name: "free" } });
-  await prisma.user.upsert({
-    where: { id: "00000000-0000-0000-0000-000000000000" },
-    update: {},
-    create: {
-      id: "00000000-0000-0000-0000-000000000000",
-      email: "anonymous@pdflow.local",
-      passwordHash: "no-auth",
-      planId: freePlan.id,
-    },
-  });
-  console.log("  Anonymous user ready");
-
   console.log("Seeding complete.");
 }
 

@@ -77,6 +77,11 @@ export interface UploadResponse {
   status: string;
 }
 
+export interface ProgressResponse {
+  progress: number;
+  status: string;
+}
+
 export interface ApiError {
   error: {
     code: string;

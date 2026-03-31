@@ -27,14 +27,18 @@ function bufferTransformHandler(
 ): OperationHandler {
   return async (jobId, metadata, ctx) => {
     const inputKey = requireFileKey(metadata, label);
+    ctx.reportProgress(10);
     const pdfBuffer = await ctx.getFile(inputKey);
+    ctx.reportProgress(30);
     const resultBuffer = await transformFn(pdfBuffer, metadata);
+    ctx.reportProgress(80);
     const outputKey = `${metadata._outputBase}/${outputFilename}`;
     await ctx.putFile(outputKey, resultBuffer, "application/pdf");
     await ctx.updateStatus(jobId, "DONE", {
       outputUrl: outputKey,
       metadata: { ...metadata, size: resultBuffer.length },
     });
+    ctx.reportProgress(100);
     return { outputKey, contentType: "application/pdf" };
   };
 }
@@ -108,6 +112,7 @@ export const transformHandlers: Record<string, OperationHandler> = {
     if (!metadata.text && (!metadata.placements || metadata.placements.length === 0)) {
       throw new Error("Either 'text' or 'placements' is required for add text");
     }
+    ctx.reportProgress(10);
     const result = await addTextToPdf({
       inputKey,
       outputKey: `${metadata._outputBase}/text-added.pdf`,
@@ -119,10 +124,12 @@ export const transformHandlers: Record<string, OperationHandler> = {
       color: metadata.color,
       placements: metadata.placements,
     });
+    ctx.reportProgress(90);
     await ctx.updateStatus(jobId, "DONE", {
       outputUrl: result.outputKey,
       metadata: { ...metadata, pageCount: result.pageCount },
     });
+    ctx.reportProgress(100);
     return { outputKey: result.outputKey, contentType: "application/pdf" };
   },
 
@@ -131,6 +138,7 @@ export const transformHandlers: Record<string, OperationHandler> = {
     if (!metadata.text) {
       throw new Error("Text is required for watermark");
     }
+    ctx.reportProgress(10);
     const result = await addWatermark({
       inputKey,
       outputKey: `${metadata._outputBase}/watermarked.pdf`,
@@ -140,10 +148,12 @@ export const transformHandlers: Record<string, OperationHandler> = {
       rotation: metadata.rotation,
       color: metadata.color,
     });
+    ctx.reportProgress(90);
     await ctx.updateStatus(jobId, "DONE", {
       outputUrl: result.outputKey,
       metadata: { ...metadata, pageCount: result.pageCount },
     });
+    ctx.reportProgress(100);
     return { outputKey: result.outputKey, contentType: "application/pdf" };
   },
 };

@@ -64,14 +64,18 @@ const CONVERSIONS: Record<string, ConversionSpec> = {
 function makeConvertHandler(spec: ConversionSpec): OperationHandler {
   return async (jobId, metadata, ctx) => {
     const inputKey = requireFileKey(metadata, spec.label);
+    ctx.reportProgress(10);
     const inputBuffer = await ctx.getFile(inputKey);
+    ctx.reportProgress(30);
     const outputBuffer = await convertWithLibreOffice(inputBuffer, spec.inputFormat, spec.outputFormat);
+    ctx.reportProgress(85);
     const outputKey = `${metadata._outputBase}/${spec.outputFilename}`;
     await ctx.putFile(outputKey, outputBuffer, spec.contentType);
     await ctx.updateStatus(jobId, "DONE", {
       outputUrl: outputKey,
       metadata: { ...metadata, size: outputBuffer.length },
     });
+    ctx.reportProgress(100);
     return { outputKey, contentType: spec.contentType };
   };
 }

@@ -120,19 +120,19 @@ export async function getQueueStats() {
 async function scheduleCleanup(): Promise<void> {
   const queue = getPdfQueue();
 
-  // Add a repeatable job that triggers cleanup every hour
+  // Add a repeatable job that triggers cleanup every 5 minutes
   await queue.add(
     "cleanup-expired-jobs",
     {},
     {
-      repeat: { every: 60 * 60 * 1000 }, // every hour
+      repeat: { every: 5 * 60 * 1000 }, // every 5 minutes
       jobId: "cleanup-expired-jobs",
       removeOnComplete: { count: 5 },
       removeOnFail: { count: 10 },
     }
   );
 
-  logger.info("Scheduled hourly cleanup job for expired jobs");
+  logger.info("Scheduled cleanup job for expired jobs (every 5 minutes)");
 }
 
 export async function closeQueue() {

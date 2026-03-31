@@ -11,17 +11,18 @@ const DEFAULT_PLAN_LIMITS = {
   maxFileSizeMB: 100,
   maxPagesPerJob: 10000,
   concurrentJobs: -1,     // unlimited
-  retentionDays: 30,
 };
 
-export async function createJob(userId: string, input: CreateJobInput) {
-  const retentionDays = DEFAULT_PLAN_LIMITS.retentionDays;
+/** File TTL: 30 minutes */
+const FILE_TTL_MINUTES = 30;
+
+export async function createJob(sessionId: string, input: CreateJobInput) {
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + retentionDays);
+  expiresAt.setMinutes(expiresAt.getMinutes() + FILE_TTL_MINUTES);
 
   const job = await prisma.job.create({
     data: {
-      userId,
+      sessionId,
       type: input.type as JobType,
       status: JobStatus.PENDING,
       inputUrl: input.inputUrl ?? null,
@@ -33,7 +34,7 @@ export async function createJob(userId: string, input: CreateJobInput) {
   // Log usage
   await prisma.usageLog.create({
     data: {
-      userId,
+      sessionId,
       jobType: input.type as JobType,
       creditsUsed: 1,
     },
@@ -44,7 +45,7 @@ export async function createJob(userId: string, input: CreateJobInput) {
     `pdf-${input.type.toLowerCase()}`,
     {
       jobId: job.id,
-      userId,
+      userId: sessionId,
       type: input.type,
       inputUrl: input.inputUrl,
       metadata: input.metadata,
@@ -59,14 +60,14 @@ export async function createJob(userId: string, input: CreateJobInput) {
     }
   );
 
-  logger.info({ jobId: job.id, type: input.type, userId }, "Job created and enqueued");
+  logger.info({ jobId: job.id, type: input.type, sessionId }, "Job created and enqueued");
 
   return job;
 }
 
-export async function getJob(userId: string, jobId: string) {
+export async function getJob(sessionId: string, jobId: string) {
   const job = await prisma.job.findFirst({
-    where: { id: jobId, userId },
+    where: { id: jobId, sessionId },
   });
 
   if (!job) {
@@ -76,8 +77,8 @@ export async function getJob(userId: string, jobId: string) {
   return job;
 }
 
-export async function listJobs(userId: string, input: ListJobsInput) {
-  const where: any = { userId };
+export async function listJobs(sessionId: string, input: ListJobsInput) {
+  const where: any = { sessionId };
   if (input.status) where.status = input.status;
   if (input.type) where.type = input.type;
 
@@ -102,9 +103,9 @@ export async function listJobs(userId: string, input: ListJobsInput) {
   };
 }
 
-export async function cancelJob(userId: string, jobId: string) {
+export async function cancelJob(sessionId: string, jobId: string) {
   const job = await prisma.job.findFirst({
-    where: { id: jobId, userId },
+    where: { id: jobId, sessionId },
   });
 
   if (!job) {
@@ -129,19 +130,19 @@ export async function cancelJob(userId: string, jobId: string) {
   return updated;
 }
 
-export async function getUsageStats(userId: string) {
+export async function getUsageStats(sessionId: string) {
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
   const [totalJobs, monthlyUsage, byType] = await Promise.all([
-    prisma.job.count({ where: { userId } }),
+    prisma.job.count({ where: { sessionId } }),
     prisma.usageLog.count({
-      where: { userId, timestamp: { gte: startOfMonth } },
+      where: { sessionId, timestamp: { gte: startOfMonth } },
     }),
     prisma.usageLog.groupBy({
       by: ["jobType"],
-      where: { userId, timestamp: { gte: startOfMonth } },
+      where: { sessionId, timestamp: { gte: startOfMonth } },
       _count: true,
     }),
   ]);

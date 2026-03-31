@@ -22,15 +22,13 @@ model Plan {
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
-  passwordHash String
+  passwordHash String?
   planId       String
   apiKey       String?   @unique
   refreshToken String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   plan         Plan      @relation(fields: [planId], references: [id])
-  jobs         Job[]
-  usageLogs    UsageLog[]
   billing      Billing?
   webhooks     Webhook[]
 
@@ -75,7 +73,7 @@ enum JobType {
 
 model Job {
   id           String    @id @default(uuid())
-  userId       String
+  sessionId    String
   type         JobType
   status       JobStatus @default(PENDING)
   inputUrl     String?
@@ -85,27 +83,25 @@ model Job {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   expiresAt    DateTime?
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([sessionId])
   @@index([status])
   @@index([createdAt])
-  @@index([userId, status, createdAt])
+  @@index([sessionId, status, createdAt])
   @@index([expiresAt])
   @@map("jobs")
 }
 
 model UsageLog {
   id          String   @id @default(cuid())
-  userId      String
+  sessionId   String
   jobType     JobType
   creditsUsed Int      @default(1)
   timestamp   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([sessionId])
   @@index([timestamp])
-  @@index([userId, timestamp])
+  @@index([sessionId, timestamp])
   @@map("usage_logs")
 }
 
