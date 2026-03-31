@@ -157,6 +157,17 @@ export async function jobsRouter(app: FastifyInstance) {
     validateStorageKey(job.outputUrl);
 
     const url = await getDownloadUrl(job.outputUrl);
+
+    // If local storage, serve the file directly
+    if (url.startsWith("local://")) {
+      const { getObjectBuffer: getBuffer } = await import("../storage/r2");
+      const buffer = await getBuffer(job.outputUrl);
+      return reply
+        .header("Content-Disposition", `attachment; filename="result-${id}"`)
+        .header("Content-Type", "application/octet-stream")
+        .send(buffer);
+    }
+
     return reply.send({ downloadUrl: url, expiresIn: 3600 });
   });
 }
