@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Trash2, MousePointerSquare } from 'lucide-react';
+import { Trash2, MousePointer } from 'lucide-react';
 
 export interface RedactRegion {
   page: number;
@@ -44,7 +44,7 @@ export function RedactOptionsForm({ value, onChange }: RedactOptionsFormProps) {
       {/* Instruction when no regions */}
       {value.regions.length === 0 && (
         <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 flex flex-col items-center gap-2 text-center">
-          <MousePointerSquare className="h-6 w-6 text-muted-foreground" />
+          <MousePointer className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Click and drag on the document to draw redaction rectangles
           </p>
